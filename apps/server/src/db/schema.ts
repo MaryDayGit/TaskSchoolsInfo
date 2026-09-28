@@ -68,7 +68,10 @@ export const quizzes = pgTable(
       .notNull()
       .references(() => teachers.id, { onDelete: 'cascade' }),
     title: text('title').notNull(),
-    questions: jsonb('questions').$type<Question[]>().notNull().default(sql`'[]'::jsonb`),
+    questions: jsonb('questions')
+      .$type<Question[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
     createdAt: createdAt(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

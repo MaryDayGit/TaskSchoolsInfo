@@ -64,7 +64,9 @@ export async function buildApp({ config, db, logger = false }: BuildAppOptions) 
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof ZodError) {
       const first = err.issues[0];
-      return reply.status(400).send({ error: first?.message ?? 'Некоректні дані', details: err.issues });
+      return reply
+        .status(400)
+        .send({ error: first?.message ?? 'Некоректні дані', details: err.issues });
     }
     if (err instanceof HttpError) {
       return reply.status(err.statusCode).send({ error: err.message });

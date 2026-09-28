@@ -95,10 +95,7 @@ export function toPublicQuestion(q: Question): PublicQuestion {
 }
 
 /** A single answer: an option id, a list of option ids, or free text. */
-export const answerValueSchema = z.union([
-  z.string().max(500),
-  z.array(z.string().max(40)).max(8),
-]);
+export const answerValueSchema = z.union([z.string().max(500), z.array(z.string().max(40)).max(8)]);
 export type AnswerValue = z.infer<typeof answerValueSchema>;
 
 /** Answers keyed by question id. A missing key means the question was skipped. */

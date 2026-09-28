@@ -20,7 +20,11 @@ import { loadStudent } from '../lib/studentContext.js';
 type AssignmentRow = typeof assignments.$inferSelect;
 type SubmissionRow = typeof submissions.$inferSelect;
 
-function summarize(a: AssignmentRow, mine: SubmissionRow[], now: Date): StudentAssignmentSummaryDto {
+function summarize(
+  a: AssignmentRow,
+  mine: SubmissionRow[],
+  now: Date,
+): StudentAssignmentSummaryDto {
   const best = mine.reduce<SubmissionRow | null>(
     (acc, s) => (!acc || s.correctCount > acc.correctCount ? s : acc),
     null,
@@ -109,50 +113,47 @@ export async function studentRoutes(app: FastifyInstance) {
     },
   );
 
-  app.post(
-    '/api/student/assignments/:id/submit',
-    async (req): Promise<SubmissionResultDto> => {
-      const me = await loadStudent(db, req);
-      const a = await getClassAssignment(db, me.classId, idParam(req.params));
-      const { answers } = submitAnswersSchema.parse(req.body);
+  app.post('/api/student/assignments/:id/submit', async (req): Promise<SubmissionResultDto> => {
+    const me = await loadStudent(db, req);
+    const a = await getClassAssignment(db, me.classId, idParam(req.params));
+    const { answers } = submitAnswersSchema.parse(req.body);
 
-      const mine = await mySubmissions(db, a.id, me.id);
-      const summary = summarize(a, mine, new Date());
-      if (summary.closed) {
-        throw conflict(
-          a.dueAt && a.dueAt <= new Date()
-            ? 'Час на виконання завдання вже минув'
-            : 'Усі спроби вже використано',
-        );
+    const mine = await mySubmissions(db, a.id, me.id);
+    const summary = summarize(a, mine, new Date());
+    if (summary.closed) {
+      throw conflict(
+        a.dueAt && a.dueAt <= new Date()
+          ? 'Час на виконання завдання вже минув'
+          : 'Усі спроби вже використано',
+      );
+    }
+
+    // Keep only answers to questions that exist in this assignment.
+    const known = new Set(a.questions.map((q) => q.id));
+    const cleaned = Object.fromEntries(Object.entries(answers).filter(([k]) => known.has(k)));
+    const graded = gradeAnswers(a.questions, cleaned);
+
+    try {
+      const [row] = await db
+        .insert(submissions)
+        .values({
+          assignmentId: a.id,
+          studentId: me.id,
+          attempt: mine.length + 1,
+          answers: cleaned,
+          correctCount: graded.correctCount,
+          total: graded.total,
+        })
+        .returning();
+      return toResult(a, row!);
+    } catch (err) {
+      const e = err as { code?: string; cause?: { code?: string } };
+      if (e.code === '23505' || e.cause?.code === '23505') {
+        throw conflict('Відповіді вже надіслано');
       }
-
-      // Keep only answers to questions that exist in this assignment.
-      const known = new Set(a.questions.map((q) => q.id));
-      const cleaned = Object.fromEntries(Object.entries(answers).filter(([k]) => known.has(k)));
-      const graded = gradeAnswers(a.questions, cleaned);
-
-      try {
-        const [row] = await db
-          .insert(submissions)
-          .values({
-            assignmentId: a.id,
-            studentId: me.id,
-            attempt: mine.length + 1,
-            answers: cleaned,
-            correctCount: graded.correctCount,
-            total: graded.total,
-          })
-          .returning();
-        return toResult(a, row!);
-      } catch (err) {
-        const e = err as { code?: string; cause?: { code?: string } };
-        if (e.code === '23505' || e.cause?.code === '23505') {
-          throw conflict('Відповіді вже надіслано');
-        }
-        throw err;
-      }
-    },
-  );
+      throw err;
+    }
+  });
 
   app.get('/api/student/live', async (req) => {
     const me = await loadStudent(db, req);

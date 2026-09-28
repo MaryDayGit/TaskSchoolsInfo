@@ -9,7 +9,8 @@ const { db, close } = await connectPostgres(config.databaseUrl);
 const app = await buildApp({
   config,
   db,
-  logger: config.env === 'development' ? { level: 'info', transport: undefined } : { level: 'info' },
+  logger:
+    config.env === 'development' ? { level: 'info', transport: undefined } : { level: 'info' },
 });
 await app.live.abortStaleSessions();
 const io = attachLiveSocket(app, app.server);

@@ -54,8 +54,12 @@ describe('teacher auth', () => {
     await a.post('/api/auth/logout');
     expect((await a.get('/api/auth/me')).statusCode).toBe(401);
 
-    expect((await a.post('/api/auth/login', { email: 't@s.ua', password: 'wrong-pass' })).statusCode).toBe(401);
-    expect((await a.post('/api/auth/login', { email: 'nobody@s.ua', password: 'x' })).statusCode).toBe(401);
+    expect(
+      (await a.post('/api/auth/login', { email: 't@s.ua', password: 'wrong-pass' })).statusCode,
+    ).toBe(401);
+    expect(
+      (await a.post('/api/auth/login', { email: 'nobody@s.ua', password: 'x' })).statusCode,
+    ).toBe(401);
     const ok = await a.post('/api/auth/login', { email: 'T@S.ua', password: 'password-123' });
     expect(ok.statusCode).toBe(200);
     expect((await a.get('/api/auth/me')).json()).toMatchObject({ email: 't@s.ua' });
@@ -87,7 +91,9 @@ describe('classes and students', () => {
     expect(j[0]!.secretKind).toBe('pictures');
     expect(j[0]!.secret).toMatch(/^[a-z]+-[a-z]+-[a-z]+$/);
 
-    const s: StudentDto[] = (await t.post(`/api/classes/${senior.id}/students`, { names: ['Іван'] })).json();
+    const s: StudentDto[] = (
+      await t.post(`/api/classes/${senior.id}/students`, { names: ['Іван'] })
+    ).json();
     expect(s[0]!.secretKind).toBe('password');
     expect(s[0]!.secret).toMatch(/^\p{L}+\d{2}$/u);
 
@@ -116,7 +122,9 @@ describe('classes and students', () => {
   it('resets a student secret', async () => {
     const t = await registerTeacher(ctx.app);
     const c: ClassDto = (await t.post('/api/classes', { name: '6-А', grade: 6 })).json();
-    const [st]: StudentDto[] = (await t.post(`/api/classes/${c.id}/students`, { names: ['Марко'] })).json();
+    const [st]: StudentDto[] = (
+      await t.post(`/api/classes/${c.id}/students`, { names: ['Марко'] })
+    ).json();
     const reset: StudentDto = (await t.post(`/api/students/${st!.id}/reset-secret`)).json();
     expect(reset.secretKind).toBe('password');
     expect(reset.id).toBe(st!.id);
@@ -198,16 +206,34 @@ describe('quizzes, assignments and the journal', () => {
     ctx = await createTestApp();
   });
 
-  async function setup(assignment: Partial<{ maxAttempts: number | null; dueAt: string | null; showCorrect: boolean }> = {}) {
+  async function setup(
+    assignment: Partial<{
+      maxAttempts: number | null;
+      dueAt: string | null;
+      showCorrect: boolean;
+    }> = {},
+  ) {
     const t = await registerTeacher(ctx.app);
     const cls: ClassDto = (await t.post('/api/classes', { name: '8-А', grade: 8 })).json();
-    const [st]: StudentDto[] = (await t.post(`/api/classes/${cls.id}/students`, { names: ['Андрій', 'Богдана'] })).json();
-    const quiz: QuizDto = (await t.post('/api/quizzes', { title: 'Одиниці інформації', questions: sampleQuestions })).json();
-    const res = await t.post('/api/assignments', { quizId: quiz.id, classId: cls.id, ...assignment });
+    const [st]: StudentDto[] = (
+      await t.post(`/api/classes/${cls.id}/students`, { names: ['Андрій', 'Богдана'] })
+    ).json();
+    const quiz: QuizDto = (
+      await t.post('/api/quizzes', { title: 'Одиниці інформації', questions: sampleQuestions })
+    ).json();
+    const res = await t.post('/api/assignments', {
+      quizId: quiz.id,
+      classId: cls.id,
+      ...assignment,
+    });
     expect(res.statusCode).toBe(200);
     const a: AssignmentDto = res.json();
     const s = new Agent(ctx.app);
-    await s.post('/api/student/login', { classCode: cls.joinCode, studentId: st!.id, secret: st!.secret });
+    await s.post('/api/student/login', {
+      classCode: cls.joinCode,
+      studentId: st!.id,
+      secret: st!.secret,
+    });
     return { t, s, cls, quiz, a, student: st! };
   }
 
@@ -249,14 +275,23 @@ describe('quizzes, assignments and the journal', () => {
     const r3 = await s.post(`/api/student/assignments/${a.id}/submit`, { answers: {} });
     expect(r3.statusCode).toBe(409);
 
-    const last: SubmissionResultDto = (await s.get(`/api/student/assignments/${a.id}/result`)).json();
+    const last: SubmissionResultDto = (
+      await s.get(`/api/student/assignments/${a.id}/result`)
+    ).json();
     expect(last.attempt).toBe(2);
 
     const results: AssignmentResultsDto = (await t.get(`/api/assignments/${a.id}/results`)).json();
     expect(results.assignment.submittedCount).toBe(1);
     const andriy = results.rows.find((r) => r.displayName === 'Андрій')!;
-    expect(andriy).toMatchObject({ attempts: 2, best: { correctCount: 3, total: 3 }, perQuestion: [true, true, true] });
-    expect(results.rows.find((r) => r.displayName === 'Богдана')).toMatchObject({ attempts: 0, best: null });
+    expect(andriy).toMatchObject({
+      attempts: 2,
+      best: { correctCount: 3, total: 3 },
+      perQuestion: [true, true, true],
+    });
+    expect(results.rows.find((r) => r.displayName === 'Богдана')).toMatchObject({
+      attempts: 0,
+      best: null,
+    });
   });
 
   it('hides correct answers when the teacher turns it off', async () => {

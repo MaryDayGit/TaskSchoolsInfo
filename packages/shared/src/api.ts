@@ -22,10 +22,7 @@ export const classInputSchema = z.object({
 });
 
 export const addStudentsSchema = z.object({
-  names: z
-    .array(z.string().trim().min(1).max(60))
-    .min(1, 'Додайте хоча б одного учня')
-    .max(60),
+  names: z.array(z.string().trim().min(1).max(60)).min(1, 'Додайте хоча б одного учня').max(60),
 });
 
 export const updateStudentSchema = z.object({

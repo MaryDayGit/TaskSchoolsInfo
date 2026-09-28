@@ -49,6 +49,8 @@ interface Room {
   id: string;
   teacherId: string;
   classId: string;
+  className: string;
+  joinCode: string;
   title: string;
   questions: Question[];
   junior: boolean;
@@ -118,6 +120,8 @@ export class LiveManager {
       id: s.id,
       teacherId,
       classId,
+      className: cls.name,
+      joinCode: cls.joinCode,
       title: s.title,
       questions: s.questions,
       junior: isJuniorGrade(cls.grade),
@@ -279,7 +283,16 @@ export class LiveManager {
   }
 
   private async persist(room: Room) {
-    const total = room.questions.length;
+    // Only questions that were actually asked count (the teacher may end early).
+    const total = Math.max(0, room.questionIndex + 1);
+    if (total === 0) {
+      // Ended before the first question: nothing to put in the journal.
+      await this.db
+        .update(liveSessions)
+        .set({ status: 'aborted', endedAt: new Date() })
+        .where(eq(liveSessions.id, room.id));
+      return;
+    }
     const rows = [...room.participants.values()].map((p) => {
       const answers: AnswerMap = {};
       let correctCount = 0;
@@ -287,7 +300,14 @@ export class LiveManager {
         answers[room.questions[i]!.id] = a.value;
         if (a.correct) correctCount++;
       }
-      return { sessionId: room.id, studentId: p.studentId, score: p.score, correctCount, total, answers };
+      return {
+        sessionId: room.id,
+        studentId: p.studentId,
+        score: p.score,
+        correctCount,
+        total,
+        answers,
+      };
     });
     await this.db.transaction(async (tx) => {
       if (rows.length > 0) {
@@ -391,6 +411,9 @@ export class LiveManager {
     return {
       role: 'host',
       ...this.common(room),
+      classId: room.classId,
+      className: room.className,
+      joinCode: room.joinCode,
       question: q,
       participants: participants
         .map((p) => ({

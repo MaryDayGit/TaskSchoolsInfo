@@ -146,7 +146,9 @@ export function journalToCsv(j: JournalDto): string {
     const row = [s.displayName];
     for (const c of j.columns) {
       const cell = j.cells[`${s.id}:${c.id}`];
-      row.push(cell && cell.total > 0 ? `${Math.round((100 * cell.correctCount) / cell.total)}%` : '');
+      row.push(
+        cell && cell.total > 0 ? `${Math.round((100 * cell.correctCount) / cell.total)}%` : '',
+      );
     }
     lines.push(row.map(csvCell).join(';'));
   }

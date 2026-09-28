@@ -1,0 +1,35 @@
+# Self-hosting on any server with Docker (e.g. a free Oracle Cloud VM):
+#   1. cp .env.example .env and set JWT_SECRET and POSTGRES_PASSWORD
+#   2. docker compose up -d --build
+# For HTTPS put a reverse proxy (Caddy, nginx) in front of port 3000 and set TRUST_PROXY=true.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: infoklas
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-infoklas}
+      POSTGRES_DB: infoklas
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U infoklas']
+      interval: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://infoklas:${POSTGRES_PASSWORD:-infoklas}@db:5432/infoklas
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      TEACHER_SIGNUP: ${TEACHER_SIGNUP:-false}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+    ports:
+      - '3000:3000'
+
+volumes:
+  pgdata:

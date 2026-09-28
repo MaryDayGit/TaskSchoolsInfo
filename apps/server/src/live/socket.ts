@@ -106,10 +106,22 @@ export function attachLiveSocket(app: FastifyInstance, server: HttpServer) {
       }),
     );
 
-    socket.on('live:start', handle((p) => live.start(teacher(), sessionIdOf(p))));
-    socket.on('live:reveal', handle((p) => live.reveal(teacher(), sessionIdOf(p))));
-    socket.on('live:next', handle((p) => live.next(teacher(), sessionIdOf(p))));
-    socket.on('live:end', handle((p) => live.end(teacher(), sessionIdOf(p))));
+    socket.on(
+      'live:start',
+      handle((p) => live.start(teacher(), sessionIdOf(p))),
+    );
+    socket.on(
+      'live:reveal',
+      handle((p) => live.reveal(teacher(), sessionIdOf(p))),
+    );
+    socket.on(
+      'live:next',
+      handle((p) => live.next(teacher(), sessionIdOf(p))),
+    );
+    socket.on(
+      'live:end',
+      handle((p) => live.end(teacher(), sessionIdOf(p))),
+    );
 
     socket.on(
       'live:answer',

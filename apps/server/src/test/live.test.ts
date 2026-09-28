@@ -54,14 +54,24 @@ function client(agent: Agent) {
   });
   return {
     socket,
-    emit: <E extends keyof ClientToServerEvents>(event: E, payload: Parameters<ClientToServerEvents[E]>[0]) =>
+    emit: <E extends keyof ClientToServerEvents>(
+      event: E,
+      payload: Parameters<ClientToServerEvents[E]>[0],
+    ) =>
       new Promise<LiveAck>((resolve) =>
-        (socket.emit as (e: string, p: unknown, ack: (r: LiveAck) => void) => void)(event, payload, resolve),
+        (socket.emit as (e: string, p: unknown, ack: (r: LiveAck) => void) => void)(
+          event,
+          payload,
+          resolve,
+        ),
       ),
     waitFor<T extends LiveState>(pred: (s: T) => boolean): Promise<T> {
       if (latest && pred(latest as T)) return Promise.resolve(latest as T);
       return new Promise((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error(`timeout; latest=${JSON.stringify(latest)}`)), 5000);
+        const timer = setTimeout(
+          () => reject(new Error(`timeout; latest=${JSON.stringify(latest)}`)),
+          5000,
+        );
         waiters.push({
           pred: pred as (s: LiveState) => boolean,
           resolve: (s) => {
@@ -89,7 +99,11 @@ async function setup(grade: number) {
   const players = await Promise.all(
     studs.map(async (st) => {
       const a = new Agent(ctx.app);
-      await a.post('/api/student/login', { classCode: cls.joinCode, studentId: st.id, secret: st.secret });
+      await a.post('/api/student/login', {
+        classCode: cls.joinCode,
+        studentId: st.id,
+        secret: st.secret,
+      });
       return a;
     }),
   );
@@ -102,7 +116,10 @@ describe('live quiz over websockets', () => {
     const sessionId = session.id;
 
     // The class sees the active game.
-    expect((await players[0]!.get('/api/student/live')).json()).toEqual({ id: sessionId, title: 'Бліц' });
+    expect((await players[0]!.get('/api/student/live')).json()).toEqual({
+      id: sessionId,
+      title: 'Бліц',
+    });
 
     const host = client(teacher);
     expect(await host.emit('live:host', { sessionId })).toEqual({ ok: true });
@@ -110,7 +127,9 @@ describe('live quiz over websockets', () => {
     const [anya, borys] = players.map(client);
     expect(await anya!.emit('live:join', { sessionId })).toEqual({ ok: true });
     expect(await borys!.emit('live:join', { sessionId })).toEqual({ ok: true });
-    await host.waitFor<LiveHostState>((s) => s.participants.filter((p) => p.connected).length === 2);
+    await host.waitFor<LiveHostState>(
+      (s) => s.participants.filter((p) => p.connected).length === 2,
+    );
 
     // Students can't control the game.
     expect((await anya!.emit('live:start', { sessionId })).ok).toBe(false);
@@ -120,9 +139,13 @@ describe('live quiz over websockets', () => {
     expect(q1.question?.prompt).toBe('Скільки бітів у байті?');
     expect(JSON.stringify(q1.question)).not.toContain('correct');
 
-    expect((await anya!.emit('live:answer', { sessionId, questionIndex: 0, value: 'b' })).ok).toBe(true);
+    expect((await anya!.emit('live:answer', { sessionId, questionIndex: 0, value: 'b' })).ok).toBe(
+      true,
+    );
     // Double answers are rejected.
-    expect((await anya!.emit('live:answer', { sessionId, questionIndex: 0, value: 'a' })).ok).toBe(false);
+    expect((await anya!.emit('live:answer', { sessionId, questionIndex: 0, value: 'a' })).ok).toBe(
+      false,
+    );
     await borys!.emit('live:answer', { sessionId, questionIndex: 0, value: 'a' });
 
     // Everyone answered → revealed automatically.
@@ -146,7 +169,9 @@ describe('live quiz over websockets', () => {
     await host.waitFor((s) => s.questionIndex === 2);
     await borys!.emit('live:answer', { sessionId, questionIndex: 2, value: 'Біт' });
     await anya!.emit('live:answer', { sessionId, questionIndex: 2, value: 'байт' });
-    const textReveal = await host.waitFor<LiveHostState>((s) => s.status === 'reveal' && s.questionIndex === 2);
+    const textReveal = await host.waitFor<LiveHostState>(
+      (s) => s.status === 'reveal' && s.questionIndex === 2,
+    );
     expect(textReveal.textAnswers).toHaveLength(2);
 
     await host.emit('live:next', { sessionId });
@@ -155,7 +180,11 @@ describe('live quiz over websockets', () => {
 
     // Results are persisted asynchronously right after finishing.
     await expect
-      .poll(async () => ((await teacher.get(`/api/classes/${cls.id}/journal`)).json() as JournalDto).columns.length)
+      .poll(
+        async () =>
+          ((await teacher.get(`/api/classes/${cls.id}/journal`)).json() as JournalDto).columns
+            .length,
+      )
       .toBe(1);
     const journal: JournalDto = (await teacher.get(`/api/classes/${cls.id}/journal`)).json();
     expect(journal.cells[`${studs[0]!.id}:${sessionId}`]).toEqual({ correctCount: 2, total: 3 });
@@ -179,7 +208,44 @@ describe('live quiz over websockets', () => {
     expect(reveal.myResult?.points).toBe(100);
   });
 
-  it("rejects other teachers and students from other classes", async () => {
+  it('counts only the questions asked when the teacher ends early', async () => {
+    const { teacher, cls, session, players, studs } = await setup(8);
+    const sessionId = session.id;
+    const host = client(teacher);
+    await host.emit('live:host', { sessionId });
+    const p = client(players[0]!);
+    await p.emit('live:join', { sessionId });
+    await host.emit('live:start', { sessionId });
+    await p.emit('live:answer', { sessionId, questionIndex: 0, value: 'b' });
+    await host.waitFor((s) => s.status === 'reveal');
+    await host.emit('live:end', { sessionId });
+    await expect
+      .poll(
+        async () =>
+          ((await teacher.get(`/api/classes/${cls.id}/journal`)).json() as JournalDto).cells,
+      )
+      .toEqual({ [`${studs[0]!.id}:${sessionId}`]: { correctCount: 1, total: 1 } });
+  });
+
+  it('keeps games ended in the lobby out of the journal', async () => {
+    const { teacher, cls, session } = await setup(8);
+    const host = client(teacher);
+    await host.emit('live:host', { sessionId: session.id });
+    await host.emit('live:end', { sessionId: session.id });
+    await host.waitFor((s) => s.status === 'finished');
+    await expect
+      .poll(
+        async () =>
+          ((await teacher.get(`/api/classes/${cls.id}/live`)).json() as { status: string }[])[0]
+            ?.status,
+      )
+      .toBe('aborted');
+    expect(
+      ((await teacher.get(`/api/classes/${cls.id}/journal`)).json() as JournalDto).columns,
+    ).toEqual([]);
+  });
+
+  it('rejects other teachers and students from other classes', async () => {
     const { session } = await setup(6);
     const other = await setup(6);
     const intruderHost = client(other.teacher);

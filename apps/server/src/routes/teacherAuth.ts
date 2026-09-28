@@ -3,12 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { teacherLoginSchema, teacherRegisterSchema } from '@infoklas/shared';
 import type { AuthConfigDto, TeacherDto } from '@infoklas/shared';
 import { teachers } from '../db/schema.js';
-import {
-  TEACHER_COOKIE,
-  clearSession,
-  requireTeacher,
-  setTeacherSession,
-} from '../auth.js';
+import { TEACHER_COOKIE, clearSession, requireTeacher, setTeacherSession } from '../auth.js';
 import { HttpError, conflict, forbidden } from '../lib/errors.js';
 import { hashPassword, verifyPassword } from '../lib/passwords.js';
 

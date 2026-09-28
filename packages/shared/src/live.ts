@@ -42,6 +42,10 @@ interface LiveCommon {
 
 export interface LiveHostState extends LiveCommon {
   role: 'host';
+  classId: string;
+  className: string;
+  /** Shown in the lobby so students who aren't logged in yet can join. */
+  joinCode: string;
   question: Question | null;
   participants: LiveParticipant[];
   answeredCount: number;

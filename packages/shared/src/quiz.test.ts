@@ -83,11 +83,15 @@ describe('gradeAnswers', () => {
 describe('schemas', () => {
   it('rejects a correct option that is not among the options', () => {
     expect(questionSchema.safeParse({ ...single, correctOptionId: 'x' }).success).toBe(false);
-    expect(questionSchema.safeParse({ ...multiple, correctOptionIds: ['a', 'z'] }).success).toBe(false);
+    expect(questionSchema.safeParse({ ...multiple, correctOptionIds: ['a', 'z'] }).success).toBe(
+      false,
+    );
   });
 
   it('rejects duplicate question ids', () => {
-    expect(quizInputSchema.safeParse({ title: 'T', questions: [single, single] }).success).toBe(false);
+    expect(quizInputSchema.safeParse({ title: 'T', questions: [single, single] }).success).toBe(
+      false,
+    );
   });
 
   it('fills the default time limit', () => {

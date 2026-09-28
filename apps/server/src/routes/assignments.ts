@@ -2,11 +2,7 @@ import { asc, countDistinct, desc, eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { assignmentInputSchema, gradeAnswers } from '@infoklas/shared';
-import type {
-  AssignmentDto,
-  AssignmentResultRowDto,
-  AssignmentResultsDto,
-} from '@infoklas/shared';
+import type { AssignmentDto, AssignmentResultRowDto, AssignmentResultsDto } from '@infoklas/shared';
 import type { Db } from '../db/client.js';
 import { assignments, students, submissions } from '../db/schema.js';
 import { requireTeacher } from '../auth.js';
