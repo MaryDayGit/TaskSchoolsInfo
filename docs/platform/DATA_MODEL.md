@@ -176,6 +176,14 @@ match /assignmentKeys/{aId} {
 - Тест на уроке — это `assignments` с `kind: "lesson"`, и `task.assignmentId` указывает на него. Сдача идёт в `submissions` (или `guestResults` у гостя), а не в `results`.
 - `reveals/{sessionId}` не нужен: разбор открывает флаг `revealNow` у задания через правило `assignmentKeys`.
 
+Реализовано на этапе 4 (`firestore/firestore.rules`, тесты — `firestore/lesson.rules.test.ts`). Уточнения:
+
+- В `rooms/{roomId}` добавлено `className`: страница ученика показывает «Урок: 5-А» и список имён, а документ класса ей читать нельзя. Правило перечисляет поля: `classId`, `className`, `task`, `lastTest`, `locked`, `theme`, `timer`, `handsDown`, `resetAt`. `lastTest` = `{assignmentId, title, sentAt, target}`.
+- `resetAt` меняется при выборе класса и при «Завершити урок». Школьный ПК (у него запомнен номер) при смене значения выходит: удаляет привязку или гостя и снова показывает вход. Номер ПК остаётся. Телефон дома (без номера) на `resetAt` не реагирует.
+- Тест на уроке — задание `lesson_{resetAt}_{quizId}`: одно на тест и класс, повторная отправка опоздавшим попадает в него же. `maxAttempts: 1`, `dueAt: null`, `reveal: 'never'`; разбор включает `revealNow`.
+- Гость читает тест урока (`assignments` с `kind: 'lesson'`, только `get` по id) и его ключ, пока включено «Показати учням результати» — как тесты и `reveals` Клас-пульта. При следующем задании, «Прибрати з екранів», новом классе и «Завершити урок» пульт выключает `revealNow` прошлого теста.
+- `guestResults`: `assignmentId`, `pcId` (`pcNN`), `name` (1–60), `answers` (карта ≤ 50), `submittedAt` (= `request.time`); только для тестов урока. Удаляются вместе с заданием и классом.
+
 ## Живые игры
 
 | Путь                                         | Поля                                                                                                                                                                                                                                                                                                 | Пишет                                                                        | Читает                 |

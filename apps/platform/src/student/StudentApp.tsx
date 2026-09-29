@@ -27,6 +27,9 @@ import {
 import { describeDevice } from '../lib/device';
 import { isJuniorGrade, normalizeSecret } from '../lib/secrets';
 import { HomeworkList } from './HomeworkList';
+import { LessonScreen } from './LessonScreen';
+import { pcNum as parsePcNum } from '@infoklas/shared/lesson';
+import { roomRef, type RoomDoc } from '../data/room';
 
 import { store } from '../lib/storage';
 import { clean } from '../lib/text';
@@ -50,7 +53,12 @@ interface Guest {
 export function StudentApp() {
   const { user, error: authError } = useUser();
   const binding = useDoc<BindingDoc>(user ? bindingRef(user.uid) : null);
+  // The lesson in the computer lab (rooms/lab): the current class, tasks on screens.
+  const room = useDoc<RoomDoc>(user ? roomRef() : null);
   const [guest, setGuest] = useState<Guest | null>(() => store.get<Guest | null>('guest', null));
+  // A school PC remembers its number; a phone at home never has one.
+  const [pc, setPc] = useState<number | null>(() => parsePcNum(store.get('pcNum', null)));
+  const [noPc, setNoPc] = useState(() => store.get('noPc', false));
   const [notice, setNotice] = useState<string | null>(null);
   const markStale = useCallback(() => {
     store.remove('bound');
@@ -67,32 +75,112 @@ export function StudentApp() {
     else if (store.get('bound', false)) markStale();
   }, [known, binding.exists, markStale]);
 
+  // «Новий клас» on the teacher's console: a school PC logs out the previous pupil
+  // (or guest) and shows the login of the new class; the PC number stays. Values
+  // are compared, not times: school PCs' clocks are often wrong (Клас-пульт).
+  const resetAt = room.data?.resetAt ?? null;
+  const roomKnown = !!user && !room.loading && !room.fromCache && !room.pending;
+  useEffect(() => {
+    if (!roomKnown || !user) return;
+    const seen = store.get<number | null | 'never'>('resetAt', 'never');
+    if (seen === resetAt) return;
+    store.set('resetAt', resetAt);
+    if (seen === 'never' || pc === null) return;
+    for (const k of [
+      'guest',
+      'hand',
+      'done',
+      'opened',
+      'testDone',
+      'testDraft',
+      'testAnswers',
+      'bound',
+    ]) {
+      store.remove(k);
+    }
+    setGuest(null);
+    setNotice(null);
+    if (binding.exists) void deleteDoc(bindingRef(user.uid)).catch(() => {});
+  }, [roomKnown, resetAt, pc, user, binding.exists]);
+
+  const theme = room.data?.theme === 'senior' ? 'senior' : 'junior';
+  useEffect(() => {
+    if (room.data) store.set('theme', theme);
+  }, [room.data, theme]);
+  const shownTheme = room.data ? theme : store.get('theme', 'junior');
+
+  const lessonClass =
+    room.data?.classId && room.data.className
+      ? { id: room.data.classId, name: room.data.className }
+      : null;
+
   let body: ReactNode;
-  if (!user || binding.loading) {
+  let wide = false;
+  if (!user || binding.loading || room.loading) {
     body =
       authError || binding.error ? <ErrorText error={authError ?? binding.error} /> : <Spinner />;
   } else if (binding.exists && binding.data && !binding.pending) {
     // Only a binding the server accepted: a wrong password is written locally first
     // and then rejected, and the login form must stay on screen to say so.
-    body = <BoundHome uid={user.uid} b={binding.data} onStale={markStale} />;
+    const b = binding.data;
+    const myLesson = lessonClass?.id === b.classId;
+    if (myLesson && pc === null && !noPc) {
+      body = (
+        <PcPrompt
+          onDone={(n) => {
+            store.set('pcNum', n);
+            setPc(n);
+          }}
+          onSkip={() => {
+            store.set('noPc', true);
+            setNoPc(true);
+          }}
+        />
+      );
+    } else if (myLesson && pc !== null) {
+      wide = true;
+      body = (
+        <BoundLesson
+          uid={user.uid}
+          b={b}
+          room={room.data!}
+          roomFromCache={room.fromCache}
+          pc={pc}
+          onStale={markStale}
+        />
+      );
+    } else {
+      body = <BoundHome uid={user.uid} b={b} onStale={markStale} />;
+    }
   } else if (guest) {
+    wide = true;
     body = (
-      <GuestHome
-        guest={guest}
-        onLeave={() => {
-          store.remove('guest');
-          setGuest(null);
-        }}
-      />
+      <div data-testid="guest-home">
+        <LessonScreen
+          uid={user.uid}
+          room={room.data ?? {}}
+          roomFromCache={room.fromCache}
+          pc={guest.pc}
+          who={{ name: guest.name, studentId: null, classId: null }}
+          onNotMe={() => {
+            store.remove('guest');
+            setGuest(null);
+          }}
+        />
+      </div>
     );
   } else {
     body = (
       <LoginFlow
+        key={lessonClass?.id ?? 'none'}
         uid={user.uid}
         notice={notice}
+        lessonClass={lessonClass}
+        pc={pc}
         onGuest={(g) => {
           store.set('guest', g);
           store.set('pcNum', g.pc);
+          setPc(g.pc);
           setGuest(g);
         }}
       />
@@ -100,16 +188,107 @@ export function StudentApp() {
   }
 
   return (
-    <div className="student">
+    <div className={`student theme-${shownTheme}`}>
       <header className="student-bar">
         <span className="brand brand-light">
           <Brand /> ІнфоКлас
         </span>
       </header>
       <main className="student-main">
-        <div className="task-card">{body}</div>
+        <div className={`task-card${wide ? ' task-card-wide' : ''}`}>{body}</div>
       </main>
     </div>
+  );
+}
+
+/** A pupil of the lesson class on a school PC. */
+function BoundLesson({
+  uid,
+  b,
+  room,
+  roomFromCache,
+  pc,
+  onStale,
+}: {
+  uid: string;
+  b: BindingDoc;
+  room: RoomDoc;
+  roomFromCache: boolean;
+  pc: number;
+  onStale: () => void;
+}) {
+  const confirm = useConfirm();
+  const me = useDoc<RosterDoc>(rosterRef(b.classId, b.studentId));
+  // A new password makes the binding invalid: the roster row stays readable, but
+  // the class is not — the same check as on the home screen.
+  useEffect(() => {
+    let cancelled = false;
+    getDoc(classRef(b.classId)).catch((err: unknown) => {
+      if (cancelled || !isPermissionDenied(err)) return;
+      onStale();
+      void deleteDoc(bindingRef(uid));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [uid, b.classId, onStale]);
+
+  if (me.loading) return <Spinner />;
+  return (
+    <div data-testid="student-home">
+      <LessonScreen
+        uid={uid}
+        room={room}
+        roomFromCache={roomFromCache}
+        pc={pc}
+        who={{ name: me.data?.displayName ?? '…', studentId: b.studentId, classId: b.classId }}
+        onNotMe={async () => {
+          const ok = await confirm({
+            title: 'Вийти?',
+            text: 'Щоб увійти знову, знадобиться твоя картка з паролем.',
+            ok: 'Вийти',
+          });
+          if (!ok) return;
+          store.remove('bound');
+          await deleteDoc(bindingRef(uid));
+        }}
+      />
+    </div>
+  );
+}
+
+/** Asked once on a school PC when the pupil's class is on the lesson. */
+function PcPrompt({ onDone, onSkip }: { onDone: (n: number) => void; onSkip: () => void }) {
+  const [value, setValue] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <form
+      className="stack"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const n = parsePcNum(value);
+        if (n === null) return setError('Введи номер від 1 до 99 — він наклеєний на моніторі.');
+        onDone(n);
+      }}
+    >
+      <h1 className="center">Ти в комп'ютерному класі?</h1>
+      <label className="field">
+        <span>Номер комп'ютера</span>
+        <input
+          className="input input-lg"
+          inputMode="numeric"
+          value={value}
+          aria-label="Номер комп'ютера"
+          onChange={(e) => setValue(e.target.value.replace(/\D/g, '').slice(0, 2))}
+        />
+        <small className="hint">Номер наклеєно на моніторі.</small>
+      </label>
+      <ErrorText error={error} />
+      <button className="btn btn-sun btn-lg btn-block">Готово</button>
+      <button type="button" className="btn btn-ghost btn-sm" onClick={onSkip}>
+        Я не за комп'ютером класу
+      </button>
+    </form>
   );
 }
 
@@ -187,22 +366,6 @@ function BoundHome({ uid, b, onStale }: { uid: string; b: BindingDoc; onStale: (
   );
 }
 
-function GuestHome({ guest, onLeave }: { guest: Guest; onLeave: () => void }) {
-  return (
-    <div className="stack center" data-testid="guest-home">
-      <p className="pc-number">ПК {String(guest.pc).padStart(2, '0')}</p>
-      <h1>{guest.name}</h1>
-      <p className="muted">Ти увійшов(ла) як гість: результати побачить учитель на уроці.</p>
-      <p className="waiting">
-        <span className="pulse-dot" aria-hidden="true" /> Чекаємо на завдання
-      </p>
-      <button className="btn btn-ghost btn-sm" onClick={onLeave}>
-        Це не я
-      </button>
-    </div>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Login: class code → name → pictures / password
 
@@ -211,14 +374,25 @@ type Pick = { id: string; data: RosterDoc };
 function LoginFlow({
   uid,
   notice,
+  lessonClass,
+  pc,
   onGuest,
 }: {
   uid: string;
   notice: string | null;
+  /** The class on the lesson in the lab: its pupils pick their name without a code. */
+  lessonClass: { id: string; name: string } | null;
+  pc: number | null;
   onGuest: (g: Guest) => void;
 }) {
   const params = useParams();
-  const [step, setStep] = useState<'code' | 'name' | 'secret' | 'guest'>('code');
+  // A school PC (it remembers its number) goes straight to the names of the lesson
+  // class; elsewhere (a phone at home) the lesson is one button on the code screen.
+  const straightToLesson = !!lessonClass && pc !== null && !params.code;
+  const [step, setStep] = useState<'code' | 'name' | 'secret' | 'guest'>(
+    straightToLesson ? 'name' : 'code',
+  );
+  const [fromLesson, setFromLesson] = useState(straightToLesson);
   const [code, setCode] = useState(params.code ?? store.get('lastCode', ''));
   const [classId, setClassId] = useState<string | null>(null);
   const [roster, setRoster] = useState<Pick[]>([]);
@@ -238,13 +412,8 @@ function LoginFlow({
         setError('Клас з таким кодом не знайдено. Перевір код.');
         return;
       }
-      const list = await getDocs(rosterCol(id));
-      setClassId(id);
-      setRoster(
-        list.docs
-          .map((d) => ({ id: d.id, data: d.data() as RosterDoc }))
-          .sort((a, b) => a.data.displayName.localeCompare(b.data.displayName, 'uk')),
-      );
+      await loadRoster(id);
+      setFromLesson(false);
       store.set('lastCode', code);
       setStep('name');
     } catch (err) {
@@ -254,11 +423,38 @@ function LoginFlow({
     }
   };
 
-  // A link from Google Classroom (/join/123456) opens the class right away.
+  const loadRoster = async (id: string) => {
+    const list = await getDocs(rosterCol(id));
+    setClassId(id);
+    setRoster(
+      list.docs
+        .map((d) => ({ id: d.id, data: d.data() as RosterDoc }))
+        .sort((a, b) => a.data.displayName.localeCompare(b.data.displayName, 'uk')),
+    );
+  };
+
+  // A link from Google Classroom (/join/123456) opens the class right away; on a
+  // lesson in the lab the names of the lesson class are shown without a code.
   useEffect(() => {
     if (params.code) void openClass();
+    else if (straightToLesson) openLesson();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function openLesson() {
+    if (!lessonClass) return;
+    setFromLesson(true);
+    setStep('name');
+    setBusy(true);
+    setError(null);
+    loadRoster(lessonClass.id)
+      .catch((err: unknown) => {
+        setError(errorText(err));
+        setStep('code');
+        setFromLesson(false);
+      })
+      .finally(() => setBusy(false));
+  }
 
   const login = async (secret: string): Promise<boolean> => {
     if (!classId || !student) return false;
@@ -306,6 +502,11 @@ function LoginFlow({
         <button className="btn btn-sun btn-lg btn-block" disabled={busy || code.length !== 6}>
           Далі
         </button>
+        {lessonClass && (
+          <button type="button" className="btn btn-secondary" onClick={openLesson}>
+            Я на уроці: {lessonClass.name}
+          </button>
+        )}
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => setStep('guest')}>
           Увійти як гість (на уроці, без картки)
         </button>
@@ -318,8 +519,18 @@ function LoginFlow({
       <div className="stack">
         {/* A /join link skips the code step, so the notice is shown here too. */}
         {notice && <p className="alert alert-info">{notice}</p>}
+        {fromLesson && lessonClass && (
+          <p className="center">
+            {pc !== null && <span className="badge">Комп’ютер {String(pc).padStart(2, '0')}</span>}{' '}
+            <span className="badge" data-testid="lesson-badge">
+              Урок: {lessonClass.name}
+            </span>
+          </p>
+        )}
         <h1 className="center">Хто ти?</h1>
-        {roster.length === 0 ? (
+        {busy ? (
+          <Spinner />
+        ) : roster.length === 0 ? (
           <p className="muted center">У класі ще немає учнів. Попроси вчителя додати тебе.</p>
         ) : (
           <div className="name-grid">
@@ -338,9 +549,16 @@ function LoginFlow({
             ))}
           </div>
         )}
-        <button className="btn btn-ghost btn-sm" onClick={() => setStep('code')}>
-          ← Інший код
-        </button>
+        <div className="row row-center">
+          <button className="btn btn-ghost btn-sm" onClick={() => setStep('code')}>
+            {fromLesson ? 'Я з іншого класу (ввести код)' : '← Інший код'}
+          </button>
+          {fromLesson && (
+            <button className="btn btn-ghost btn-sm" onClick={() => setStep('guest')}>
+              Увійти як гість
+            </button>
+          )}
+        </div>
       </div>
     );
   }

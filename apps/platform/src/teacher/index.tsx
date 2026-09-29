@@ -6,6 +6,7 @@ import { AssignmentPage } from './AssignmentPage';
 import { ClassesPage } from './ClassesPage';
 import { QuizEditorPage } from './QuizEditorPage';
 import { QuizzesPage } from './QuizzesPage';
+import { LessonPage } from './lesson/LessonPage';
 import { TeacherGate, useTeacher } from './TeacherGate';
 
 function TeacherLayout() {
@@ -18,6 +19,7 @@ function TeacherLayout() {
             <Brand /> ІнфоКлас
           </Link>
           <nav className="topnav" aria-label="Розділи">
+            <NavLink to="/t/lesson">Урок</NavLink>
             <NavLink to="/t" end>
               Класи
             </NavLink>
@@ -33,6 +35,7 @@ function TeacherLayout() {
         <Route index element={<ClassesPage />} />
         <Route path="classes/:id" element={<ClassPage />} />
         <Route path="classes/:id/cards" element={<CardsPage />} />
+        <Route path="lesson" element={<LessonPage />} />
         <Route path="quizzes" element={<QuizzesPage />} />
         <Route path="quizzes/new" element={<QuizEditorPage />} />
         <Route path="quizzes/:id" element={<QuizEditorPage />} />

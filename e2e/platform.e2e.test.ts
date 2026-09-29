@@ -256,7 +256,7 @@ describe('stage 2: classes, students, student login', () => {
     await page.getByLabel("Номер комп'ютера").fill('7');
     await page.getByLabel("Ім'я та прізвище").fill('Марко Гість');
     await page.getByRole('button', { name: 'Готово' }).click();
-    await page.getByTestId('guest-home').getByText('ПК 07').waitFor();
+    await page.getByTestId('guest-home').locator('.who-pc-num').getByText('07').waitFor();
     await page.reload();
     await page.getByTestId('guest-home').getByText('Марко Гість').waitFor({ timeout: 15_000 });
     expect(page.errors).toEqual([]);
@@ -441,6 +441,301 @@ describe('stage 3: bank, homework, results, journal', () => {
       .getByText(/давали: 6-В \d\d\.\d\d/)
       .waitFor();
     expect(teacher.errors).toEqual([]);
+  });
+});
+
+describe('stage 4: lesson console (Клас-пульт criteria)', () => {
+  let lina = '';
+  let pc3: TrackedPage;
+  let pc7: TrackedPage;
+  let pcs: BrowserContext[] = [];
+
+  const lessonPage = async () => {
+    await teacher.goto(`${BASE_URL}/t/lesson`);
+    await teacher.getByRole('heading', { name: 'Урок' }).waitFor();
+  };
+  const startClass = async (name: string) => {
+    await teacher.getByLabel('Новий клас').selectOption({ label: name });
+    await teacher.locator('.panel-class').getByRole('button', { name: 'Почати урок' }).click();
+    await teacher.getByRole('alertdialog').getByRole('button', { name: 'Почати урок' }).click();
+    await teacher.getByTestId('lesson-class').getByText(name).waitFor();
+  };
+  /** The option may say «— вже давали цьому класу»: pick it by the test title. */
+  const chooseTest = async (title: string) => {
+    const option = teacher.locator('.panel-send select option', { hasText: title });
+    await teacher.locator('.panel-send select').selectOption((await option.getAttribute('value'))!);
+  };
+  const send = async () => {
+    await teacher.getByRole('button', { name: 'Надіслати', exact: true }).click();
+    await teacher
+      .locator('.panel-send')
+      .getByText(/^Надіслано о/)
+      .waitFor();
+  };
+
+  it('teacher starts a lesson by choosing a class', async () => {
+    await createClass('5-Г', 5);
+    await addStudents(['Ліна Б.', 'Тарас Г.']);
+    await teacher.getByLabel('Показати паролі').check();
+    lina = (await teacher
+      .getByTestId('student-Ліна Б.')
+      .locator('.secret-word')
+      .textContent())!.trim();
+    await lessonPage();
+    await startClass('5-Г');
+    expect(teacher.errors).toEqual([]);
+  });
+
+  it('a pupil logs in from the lesson list; a guest joins with a PC number', async () => {
+    const a = await computer(browser);
+    const b = await computer(browser);
+    pcs = [a, b];
+    pc3 = await open(a, '/');
+    // A PC without a number yet: the lesson is one button away from the code screen.
+    await pc3.getByRole('button', { name: 'Я на уроці: 5-Г' }).click({ timeout: 15_000 });
+    await pc3.getByRole('button', { name: 'Ліна Б.' }).click();
+    await pc3.getByLabel('Пароль').fill(lina);
+    await pc3.getByRole('button', { name: 'Увійти' }).click();
+    await pc3.getByLabel("Номер комп'ютера").fill('3');
+    await pc3.getByRole('button', { name: 'Готово' }).click();
+    await pc3.getByTestId('lesson-screen').getByText('03').waitFor();
+
+    pc7 = await open(b, '/');
+    await pc7.getByRole('button', { name: /Увійти як гість/ }).click({ timeout: 15_000 });
+    await pc7.getByLabel("Номер комп'ютера").fill('7');
+    await pc7.getByLabel("Ім'я та прізвище").fill('Марко Гість');
+    await pc7.getByRole('button', { name: 'Готово' }).click();
+    await pc7.getByTestId('lesson-screen').getByText('Марко Гість').waitFor();
+
+    await teacher.locator('[data-pc="pc03"]').getByText('Ліна Б.').waitFor();
+    await teacher.locator('[data-pc="pc07"]').getByText('гість').waitFor();
+    await teacher.getByTestId('online-count').getByText('онлайн: 2 з 2').waitFor();
+    expect([...pc3.errors, ...pc7.errors]).toEqual([]);
+  });
+
+  it('a link to PC 03 only appears there within 2 seconds, not on PC 07', async () => {
+    await teacher.locator('[data-pc="pc03"]').click();
+    await teacher.getByLabel('вибраним (1)').waitFor();
+    await teacher.getByRole('radio', { name: 'Посилання' }).click();
+    await teacher.getByLabel('Адреса', { exact: true }).fill('example.com/lesson');
+    await teacher.getByLabel('Назва (необов’язково)').fill('Сайт уроку');
+    const t0 = Date.now();
+    await send();
+    await pc3.getByTestId('task-card').getByText('Сайт уроку').waitFor({ timeout: 5000 });
+    const ms = Date.now() - t0;
+    expect(ms).toBeLessThan(2000);
+    await pc7.waitForTimeout(1000);
+    expect(await pc7.getByTestId('task-card').count()).toBe(0);
+    await pc7.getByText('Чекаємо на завдання').waitFor();
+
+    const [tab] = await Promise.all([
+      pcs[0]!.waitForEvent('page'),
+      pc3.getByRole('button', { name: 'Відкрити' }).click(),
+    ]);
+    await tab.close();
+    await pc3.getByText('Відкрито в новій вкладці').waitFor();
+    await teacher.locator('[data-pc="pc03"]').getByText('відкрив(ла)').waitFor();
+    await teacher.getByRole('button', { name: 'зняти вибір' }).first().click();
+  });
+
+  it('message, «Я закінчив(ла)», a raised hand and the lock', async () => {
+    await teacher.getByRole('radio', { name: 'Повідомлення' }).click();
+    await teacher.getByLabel('Текст повідомлення').fill('Відкрийте зошити');
+    await send();
+    await pc7.getByText('Відкрийте зошити').waitFor();
+    await pc7.getByRole('button', { name: 'Я закінчив(ла)' }).click();
+    await teacher.locator('[data-pc="pc07"]').getByText('закінчив(ла)').waitFor();
+    await teacher.getByTestId('progress').getByText('Закінчили: 1 з 2').waitFor();
+
+    await pc7.getByRole('button', { name: 'Підняти руку' }).click();
+    await teacher
+      .getByTestId('hands')
+      .getByText(/ПК 07 · Марко Гість/)
+      .waitFor();
+    await teacher.getByTitle('Опустити руку').click();
+    await pc7.getByRole('button', { name: 'Підняти руку' }).waitFor();
+
+    await teacher.getByLabel('Заблокувати екрани').check();
+    await pc3.getByRole('alert').getByText('Дивимось на дошку').waitFor();
+    await pc7.getByRole('alert').getByText('Дивимось на дошку').waitFor();
+    await teacher.getByLabel('Заблокувати екрани').uncheck();
+    await pc3.getByText('Дивимось на дошку').waitFor({ state: 'detached' });
+    expect([...pc3.errors, ...pc7.errors, ...teacher.errors]).toEqual([]);
+  });
+
+  it('a test: the right score, the review, CSV with Cyrillic and the journal', async () => {
+    await teacher.getByRole('radio', { name: 'Тест' }).click();
+    await chooseTest('Мережі');
+    await send();
+
+    await pc3.getByRole('button', { name: 'Почати тест' }).click();
+    await pc3.getByRole('radio', { name: 'Інтернет' }).click();
+    await pc3.getByRole('radio', { name: '8', exact: true }).click();
+    await pc3.getByLabel('Відповідь').fill('Київ');
+    await pc3.getByRole('button', { name: 'Надіслати відповіді' }).click();
+    await pc3.getByTestId('test-done').waitFor();
+
+    await pc7.getByRole('button', { name: 'Почати тест' }).click();
+    await pc7.getByRole('radio', { name: 'Інтернет' }).click();
+    await pc7.getByTestId('test-left').getByText('Без відповіді: 2').waitFor();
+    await pc7.getByRole('button', { name: 'Надіслати відповіді' }).click();
+    await pc7.getByRole('alertdialog').getByRole('button', { name: 'Надіслати' }).click();
+    await pc7.getByTestId('test-done').waitFor();
+
+    await teacher.getByTestId('lr-Ліна Б.').getByText('3 / 3').waitFor();
+    await teacher.getByTestId('lr-Марко Гість').getByText('1 / 3').waitFor();
+    await teacher.getByTestId('progress').getByText('Здали: 2 з 2').waitFor();
+    const [csv] = await Promise.all([
+      teacher.waitForEvent('download'),
+      teacher.getByRole('button', { name: 'Завантажити CSV' }).click(),
+    ]);
+    expect(csv.suggestedFilename()).toMatch(/^Мережі 5-Г \d\d\.\d\d\.csv$/);
+    const text = readFileSync((await csv.path())!, 'utf8');
+    expect(text.startsWith('\uFEFFПК;Учень;Бал')).toBe(true);
+    expect(text).toContain('03;Ліна Б.;3;3;100%');
+    expect(text).toContain('07;Марко Гість;1;3;33%');
+
+    await teacher.getByRole('button', { name: 'Показати учням результати' }).click();
+    await pc3.getByTestId('lesson-review').getByText('Твій результат: 3 з 3').waitFor();
+    await pc7.getByTestId('lesson-review').getByText('Твій результат: 1 з 3').waitFor();
+    expect([...pc3.errors, ...pc7.errors]).toEqual([]);
+
+    // The pupil's result is in the class journal; the guest's is not.
+    await teacher.goto(`${BASE_URL}/t`);
+    await teacher.getByRole('link', { name: /5-Г/ }).click();
+    await teacher.getByRole('tab', { name: 'Журнал' }).click();
+    await teacher.getByTestId('journal-Ліна Б.').getByText('100%').waitFor();
+    expect(await teacher.getByTestId('journal').getByText('Марко Гість').count()).toBe(0);
+    await lessonPage();
+  });
+
+  it('the timer matches on a PC whose clock is 2 hours off', async () => {
+    await teacher
+      .locator('.panel-timer')
+      .getByRole('button', { name: '5 хв', exact: true })
+      .click();
+    await pc3.getByTestId('timer').waitFor();
+    const skewedPc = await computer(browser);
+    pcs.push(skewedPc);
+    await skewedPc.addInitScript(() => {
+      const real = Date.now.bind(Date);
+      Date.now = () => real() + 2 * 3600 * 1000;
+    });
+    const skewed = await open(skewedPc, '/');
+    await skewed.getByRole('button', { name: 'Я на уроці: 5-Г' }).click({ timeout: 15_000 });
+    await skewed.getByRole('button', { name: 'Увійти як гість' }).click();
+    await skewed.getByLabel("Номер комп'ютера").fill('9');
+    await skewed.getByLabel("Ім'я та прізвище").fill('Дмитро');
+    await skewed.getByRole('button', { name: 'Готово' }).click();
+    await skewed.getByTestId('timer').waitFor();
+    await skewed.waitForTimeout(1500); // clock sync
+    const seconds = async (p: Page) => {
+      const [m, s2] = (await p.getByTestId('timer').textContent())!
+        .match(/\d\d:\d\d/)![0]
+        .split(':');
+      return Number(m) * 60 + Number(s2);
+    };
+    const [x, y] = [await seconds(skewed), await seconds(pc3)];
+    expect(Math.abs(x - y)).toBeLessThanOrEqual(2);
+    expect(x).toBeGreaterThan(250);
+    await teacher.locator('.panel-timer').getByRole('button', { name: 'Стоп' }).click();
+    await pc3.getByTestId('timer').waitFor({ state: 'detached' });
+    expect(skewed.errors).toEqual([]);
+  });
+
+  it('console and pupil page in one browser do not sign each other out', async () => {
+    const student = await open(teacherPc, '/');
+    await student.getByRole('heading', { name: 'Введи код класу' }).waitFor({ timeout: 15_000 });
+    await teacher.reload();
+    await teacher.getByRole('heading', { name: 'Урок' }).waitFor({ timeout: 15_000 });
+    await student.reload();
+    await teacher.reload();
+    await teacher.getByTestId('lesson-class').getByText('5-Г').waitFor({ timeout: 15_000 });
+    expect(student.errors).toEqual([]);
+    await student.close();
+  });
+
+  it('phones and tablets: no horizontal scroll on the console and the pupil page', async () => {
+    for (const width of [375, 360, 768, 900]) {
+      for (const page of [teacher, pc3]) {
+        await page.setViewportSize({ width, height: 800 });
+        const overflow = await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        );
+        expect(
+          overflow,
+          `${page === teacher ? 'console' : 'pupil'} at ${width}px`,
+        ).toBeLessThanOrEqual(0);
+      }
+    }
+    await teacher.setViewportSize({ width: 1024, height: 768 });
+    await pc3.setViewportSize({ width: 1024, height: 768 });
+  });
+
+  it('«Новий клас»: school PCs show the login of the new class, the PC number stays', async () => {
+    await startClass('6-В');
+    await pc3.getByTestId('lesson-badge').getByText('Урок: 6-В').waitFor({ timeout: 15_000 });
+    await pc3.getByText('Комп’ютер 03').waitFor();
+    await pc3.getByRole('button', { name: 'Марія С.' }).waitFor();
+    await pc7.getByTestId('lesson-badge').getByText('Урок: 6-В').waitFor({ timeout: 15_000 });
+    await pc7.getByText('Комп’ютер 07').waitFor();
+    await teacher.getByText('Учнів ще немає').waitFor();
+    expect([...pc3.errors, ...pc7.errors]).toEqual([]);
+  });
+
+  it('measured: a 45-minute lesson on 30 PCs stays far below 5 000 writes', async () => {
+    // One guest PC with the heartbeat sped up 600× (100 ms instead of 60 s): 4.5 s
+    // is a 45-minute lesson. Every write of the page is counted on the emulator.
+    const ctx = await computer(browser);
+    pcs.push(ctx);
+    const page = await open(ctx, '/?hb=100');
+    await page.getByRole('button', { name: /Увійти як гість/ }).click({ timeout: 15_000 });
+    await page.getByLabel("Номер комп'ютера").fill('12');
+    await page.getByLabel("Ім'я та прізвище").fill('Замір');
+    await page.getByRole('button', { name: 'Готово' }).click();
+    await page.getByTestId('lesson-screen').waitFor();
+    const t0 = Date.now();
+    // Typical lesson: a link, a message with «Я закінчив(ла)», a hand, a test.
+    await teacher.getByRole('radio', { name: 'Посилання' }).click();
+    await teacher.getByLabel('Адреса', { exact: true }).fill('example.com/2');
+    await send();
+    const [tab] = await Promise.all([
+      ctx.waitForEvent('page'),
+      page.getByRole('button', { name: 'Відкрити' }).click(),
+    ]);
+    await tab.close();
+    await teacher.getByRole('radio', { name: 'Повідомлення' }).click();
+    await teacher.getByLabel('Текст повідомлення').fill('Готуємось до тесту');
+    await send();
+    await page.getByRole('button', { name: 'Я закінчив(ла)' }).click();
+    await page.getByRole('button', { name: 'Підняти руку' }).click();
+    await page.getByRole('button', { name: 'Опустити руку' }).click();
+    await teacher.getByRole('radio', { name: 'Тест' }).click();
+
+    await chooseTest('Мережі');
+    await send();
+    await page.getByRole('button', { name: 'Почати тест' }).click();
+    await page.getByRole('radio', { name: 'Інтернет' }).click();
+    await page.getByRole('button', { name: 'Надіслати відповіді' }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Надіслати' }).click();
+    await page.getByTestId('test-done').waitFor();
+    await page.waitForTimeout(Math.max(0, 4500 - (Date.now() - t0)));
+    const perPc = await page.evaluate(
+      () => (window as unknown as { __infoklasWrites: number }).__infoklasWrites,
+    );
+    const lesson = perPc * 30 + 50; // + the teacher's writes (tasks, lock, timer): a few dozen
+    process.stdout.write(
+      `\n[measure] writes: ${perPc} per PC in a 45-minute lesson → ~${lesson} for 30 PCs\n`,
+    );
+    expect(perPc).toBeGreaterThanOrEqual(45);
+    expect(lesson).toBeLessThan(5000);
+    expect(page.errors).toEqual([]);
+
+    // Leave the lab empty for the next scenarios.
+    await teacher.getByRole('button', { name: 'Завершити урок' }).click();
+    await teacher.getByRole('alertdialog').getByRole('button', { name: 'Завершити урок' }).click();
+    await teacher.getByTestId('lesson-class').getByText('не обрано').waitFor();
+    for (const c of pcs) await c.close();
   });
 });
 

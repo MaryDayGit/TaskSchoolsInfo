@@ -146,8 +146,16 @@ export async function loadSubmissions(assignmentId: string) {
 
 /** Deletes an assignment with its key and all submissions. */
 export async function deleteAssignment(id: string) {
-  const subs = await getDocs(query(submissionsCol(), where('assignmentId', '==', id)));
-  const refs = [...subs.docs.map((d) => d.ref), keyRef(id), assignmentRef(id)];
+  const [subs, guests] = await Promise.all([
+    getDocs(query(submissionsCol(), where('assignmentId', '==', id))),
+    getDocs(query(collection(db, 'guestResults'), where('assignmentId', '==', id))),
+  ]);
+  const refs = [
+    ...subs.docs.map((d) => d.ref),
+    ...guests.docs.map((d) => d.ref),
+    keyRef(id),
+    assignmentRef(id),
+  ];
   for (let i = 0; i < refs.length; i += 450) {
     const batch = writeBatch(db);
     refs.slice(i, i + 450).forEach((r) => batch.delete(r));
@@ -161,8 +169,17 @@ export async function deleteClassWork(classId: string) {
     getDocs(query(assignmentsCol(), where('classId', '==', classId))),
     getDocs(query(submissionsCol(), where('classId', '==', classId))),
   ]);
+  // Guest answers of lesson tests (guests are not in the class list).
+  const guests = await Promise.all(
+    assignments.docs
+      .filter((d) => d.get('kind') === 'lesson')
+      .map((d) =>
+        getDocs(query(collection(db, 'guestResults'), where('assignmentId', '==', d.id))),
+      ),
+  );
   const refs = [
     ...subs.docs.map((d) => d.ref),
+    ...guests.flatMap((g) => g.docs.map((d) => d.ref)),
     ...assignments.docs.flatMap((d) => [keyRef(d.id), d.ref]),
   ];
   for (let i = 0; i < refs.length; i += 450) {

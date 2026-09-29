@@ -1078,3 +1078,634 @@ p {
     padding: 6px 8px;
   }
 }
+
+/* ---------- Stage 4: lesson console (teacher) ---------- */
+
+.lesson.is-locked .lesson-head {
+  background: #fff4d6;
+  border-radius: var(--radius);
+  padding: 8px 12px;
+}
+.lesson-grid {
+  display: grid;
+  grid-template-columns: minmax(300px, 420px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.lesson-grid .col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.panel-title {
+  font-size: 1.1rem;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.panel-links {
+  margin-left: auto;
+}
+.seg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  padding: 4px;
+}
+.seg-label {
+  align-self: center;
+  padding: 0 6px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.seg-btn {
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+  background: none;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+}
+.seg-btn[aria-checked='true'] {
+  background: var(--surface);
+  color: var(--primary);
+  box-shadow: var(--shadow);
+}
+.seg-sm .seg-btn {
+  padding: 4px 10px;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recipients {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+.send-result {
+  margin: 0;
+  font-weight: 700;
+}
+.send-result.ok {
+  color: var(--ok);
+}
+.send-result.error {
+  color: var(--bad);
+}
+.lock-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  cursor: pointer;
+  background: var(--surface);
+}
+.lock-toggle.on {
+  background: var(--sun);
+  border-color: var(--sun-dark);
+  color: var(--ink-dark);
+}
+.now-kind {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--muted);
+  font-weight: 700;
+}
+.now-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  margin: 0;
+}
+.now-url {
+  word-break: break-all;
+}
+.now-text {
+  margin: 0;
+}
+.now-locked {
+  background: #fff4d6;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  margin: 0;
+}
+.progress-row p {
+  margin: 0 0 4px;
+}
+.btn-on {
+  background: var(--ok);
+  color: #fff;
+}
+.answers-peek summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+.timer-value {
+  font-size: 1.8rem;
+  font-weight: 900;
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.timer-value.done {
+  color: var(--bad);
+}
+.timer-min {
+  width: 80px;
+}
+.hands {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  background: #fff4d6;
+  border-radius: var(--radius-sm);
+}
+.hand-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--sun-dark);
+  background: #fff;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+.hand-order {
+  font-weight: 900;
+}
+.pc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.pc-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+.pc-card.selected {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.pc-card.offline {
+  opacity: 0.6;
+}
+.pc-card.hand {
+  border-color: var(--sun-dark);
+}
+.pc-num {
+  font-size: 1.5rem;
+  font-weight: 900;
+  line-height: 1;
+}
+.pc-name {
+  font-weight: 700;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pc-presence {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.pc-presence .dot {
+  width: 8px;
+  height: 8px;
+  background: var(--border);
+}
+.pc-presence.on .dot {
+  background: var(--ok);
+}
+.pc-status {
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.pc-status.ok {
+  color: var(--ok);
+}
+.pc-status.progress {
+  color: #8a5d00;
+}
+.pc-status.bad {
+  color: var(--bad);
+}
+.pc-hand {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--sun);
+  border-radius: 999px;
+  padding: 0 6px;
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+/* ---------- Stage 4: pupil on the lesson ---------- */
+
+.task-card-wide {
+  max-width: 900px;
+}
+.who {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  margin-bottom: 20px;
+}
+.who-pc {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+}
+.who-pc-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+.who-pc-num {
+  font-size: 3.4rem;
+  font-weight: 900;
+  color: var(--sun-dark);
+}
+.who-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.who-name {
+  margin-left: auto;
+  text-align: right;
+}
+.who-name-text {
+  display: block;
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+.who-not-me {
+  color: var(--muted);
+  text-decoration: underline;
+  font-size: 0.9rem;
+}
+.act-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 2px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  font: inherit;
+  font-weight: 700;
+  color: var(--text);
+  cursor: pointer;
+}
+.act-btn.active {
+  background: var(--sun);
+  border-color: var(--sun-dark);
+}
+.act-done.active {
+  background: #e3f6ee;
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.lesson-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  animation: card-in 0.35s ease-out;
+}
+@keyframes card-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lesson-card {
+    animation: none;
+  }
+}
+.task-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+}
+.task-title {
+  font-size: 1.7rem;
+  margin: 0;
+}
+.task-domain {
+  color: var(--muted);
+  margin: 0;
+}
+.btn-huge {
+  font-size: 1.4rem;
+  padding: 14px 36px;
+  min-height: 64px;
+}
+.task-note {
+  color: var(--ok);
+  font-weight: 700;
+  margin: 0;
+}
+.task-message {
+  font-size: 1.5rem;
+  font-weight: 700;
+  white-space: pre-wrap;
+  margin: 0;
+}
+.test-sheet {
+  align-items: stretch;
+  text-align: left;
+}
+.sheet-question {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0;
+  padding: 14px 0 4px;
+  min-width: 0;
+}
+.sheet-question .question-prompt {
+  font-size: 1.15rem;
+  margin-bottom: 10px;
+  padding: 0;
+}
+.question-num {
+  color: var(--muted);
+  margin-right: 4px;
+}
+.test-footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 0;
+  background: #fff;
+  border-top: 1px solid var(--border);
+}
+.test-footer p {
+  margin: 0;
+}
+.done-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--ok);
+  color: #fff;
+}
+.review-box {
+  width: 100%;
+  text-align: left;
+}
+.review-score {
+  font-size: 1.3rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+/* «Дивимось на дошку»: a yellow layer over everything; the page under it is inert. */
+.lock {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  background: var(--sun);
+  color: var(--ink-dark);
+}
+.lock-text {
+  font-size: 2.6rem;
+  font-weight: 900;
+  margin: 0;
+  text-align: center;
+}
+.eyes {
+  display: flex;
+  gap: 24px;
+}
+.eye {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: #fff;
+  border: 6px solid var(--ink-dark);
+}
+.pupil {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  width: 34px;
+  height: 34px;
+  margin-left: -17px;
+  border-radius: 50%;
+  background: var(--ink-dark);
+}
+.timer {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 18px;
+  border-radius: 0 0 14px 14px;
+  background: #fff;
+  color: var(--ink-dark);
+  font-size: 1.4rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 4px 0 var(--ink-dark);
+}
+.timer-soon {
+  background: #fdecea;
+  color: var(--bad);
+}
+.timer-done {
+  background: var(--bad);
+  color: #fff;
+}
+.offline-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  padding: 10px;
+  background: var(--bad);
+  color: #fff;
+  font-weight: 800;
+  text-align: center;
+}
+
+/* «Старші» (grades 7–9 by default): graphite with a teal accent. */
+.student.theme-senior {
+  background: #0e1116;
+}
+.theme-senior .task-card {
+  background: #161b22;
+  color: #e6edf3;
+  box-shadow: none;
+  border: 1px solid #30363d;
+}
+.theme-senior .muted,
+.theme-senior .task-domain,
+.theme-senior .who-pc-label,
+.theme-senior .task-kind,
+.theme-senior .question-num {
+  color: #8b949e;
+}
+.theme-senior .who-pc-num {
+  color: #2dd4bf;
+}
+.student.theme-senior .btn-sun:not(:disabled) {
+  background: #2dd4bf;
+  color: #0e1116;
+  box-shadow: none;
+}
+.theme-senior .act-btn,
+.theme-senior .option-btn,
+.theme-senior .hw-item,
+.theme-senior .name-btn {
+  background: #0e1116;
+  color: #e6edf3;
+  border-color: #30363d;
+}
+.theme-senior .option-btn.selected {
+  background: #11312e;
+  border-color: #2dd4bf;
+}
+.theme-senior .test-footer {
+  background: #161b22;
+}
+.theme-senior .input {
+  background: #0e1116;
+  color: #e6edf3;
+  border-color: #30363d;
+}
+
+/* Phones and narrow windows: the console becomes one column (class, send, on
+   screens, timer, then pupils and results). */
+@media (max-width: 760px) {
+  .lesson-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .who-pc-num {
+    font-size: 2.6rem;
+  }
+  .who-name {
+    margin-left: 0;
+    text-align: left;
+  }
+  .btn-huge {
+    width: 100%;
+  }
+  .task-title {
+    font-size: 1.35rem;
+  }
+  .lock-text {
+    font-size: 1.8rem;
+  }
+  .eye {
+    width: 64px;
+    height: 64px;
+  }
+  .pupil {
+    width: 24px;
+    height: 24px;
+    margin-left: -12px;
+    top: 8px;
+  }
+}
