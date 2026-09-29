@@ -1,0 +1,78 @@
+# Публикация единой платформы (apps/platform) в Firebase-проект klas-pult.
+#
+# Что публикуется: сайт платформы на ОТДЕЛЬНЫЙ адрес (сайт Hosting
+# `vars.FIREBASE_PLATFORM_SITE`, по умолчанию infoklas-school →
+# https://infoklas-school.web.app) и правила Firestore. Адрес Клас-пульта
+# klas-pult.web.app не трогается до переключения (docs/platform/ROADMAP.md, этап 7).
+# Правила — это правила Клас-пульта без изменений + блоки платформы, поэтому
+# Клас-пульт продолжает работать. Индексы не публикуются (платформе они не нужны).
+#
+# Нужен секрет FIREBASE_SERVICE_ACCOUNT_KLAS_PULT (docs/platform/DEPLOY.md).
+# Без него задача только сообщает, что публикация пропущена.
+name: Deploy platform
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - apps/platform/**
+      - packages/shared/**
+      - firestore/**
+      - firebase.json
+      - .firebaserc
+      - package-lock.json
+      - .github/workflows/deploy-platform.yml
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-platform
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SITE: ${{ vars.FIREBASE_PLATFORM_SITE || 'infoklas-school' }}
+      HAS_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KLAS_PULT != '' }}
+    steps:
+      - name: No Firebase key yet
+        if: env.HAS_KEY != 'true'
+        run: echo "::notice::Секрет FIREBASE_SERVICE_ACCOUNT_KLAS_PULT не задано — публікацію пропущено (docs/platform/DEPLOY.md)."
+
+      - uses: actions/checkout@v4
+        if: env.HAS_KEY == 'true'
+      - uses: actions/setup-node@v4
+        if: env.HAS_KEY == 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        if: env.HAS_KEY == 'true'
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+        if: env.HAS_KEY == 'true'
+
+      # Never publish rules that fail their tests (all Клас-пульт tests included).
+      - name: Firestore rules tests
+        if: env.HAS_KEY == 'true'
+        run: npm run test:rules
+      - name: Build the platform
+        if: env.HAS_KEY == 'true'
+        run: npm run build -w @infoklas/platform && npm run check:platform
+
+      - name: Publish rules and the platform site
+        if: env.HAS_KEY == 'true'
+        env:
+          KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KLAS_PULT }}
+        run: |
+          printf '%s' "$KEY" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          FB="npx --yes firebase-tools@15.32.0 --project klas-pult --non-interactive"
+          # The site is created once (it is a second site of the same project).
+          $FB hosting:sites:get "$SITE" >/dev/null 2>&1 || $FB hosting:sites:create "$SITE"
+          $FB target:apply hosting platform "$SITE"
+          $FB deploy --only firestore:rules,hosting:platform --message "platform ${GITHUB_SHA::7}"
+          rm -f "$RUNNER_TEMP/sa.json"
+          echo "::notice::Опубліковано: https://$SITE.web.app"
