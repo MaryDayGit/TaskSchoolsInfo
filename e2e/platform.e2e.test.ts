@@ -110,7 +110,9 @@ async function addStudents(names: string[]) {
 async function pictureSecret(name: string): Promise<string[]> {
   const row = teacher.getByTestId(`student-${name}`);
   await row.locator('.secret-pictures svg').first().waitFor();
-  return row.locator('.secret-pictures svg').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? ''));
+  return row
+    .locator('.secret-pictures svg')
+    .evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? ''));
 }
 
 async function tapPictures(page: Page, labels: string[]) {
@@ -153,7 +155,8 @@ describe('stage 2: classes, students, student login', () => {
     await page.getByRole('button', { name: 'Оля К.' }).click();
     await page.getByText('Натисни свої 4 картинки').waitFor();
 
-    const wrong = olaPictures[0] === 'Кіт' ? ['Пес', 'Пес', 'Пес', 'Пес'] : ['Кіт', 'Кіт', 'Кіт', 'Кіт'];
+    const wrong =
+      olaPictures[0] === 'Кіт' ? ['Пес', 'Пес', 'Пес', 'Пес'] : ['Кіт', 'Кіт', 'Кіт', 'Кіт'];
     await tapPictures(page, wrong);
     await page.getByRole('alert').getByText('Не ті картинки').waitFor();
 
@@ -170,21 +173,54 @@ describe('stage 2: classes, students, student login', () => {
     await teacher.getByTestId('student-Оля К.').getByText('1 пристрій').waitFor();
 
     // A new password logs the device out.
-    await teacher.getByTestId('student-Оля К.').getByRole('button', { name: 'Новий пароль' }).click();
+    await teacher
+      .getByTestId('student-Оля К.')
+      .getByRole('button', { name: 'Новий пароль' })
+      .click();
     await teacher.getByRole('alertdialog').getByRole('button', { name: 'Видати новий' }).click();
     await teacher.getByTestId('student-Оля К.').getByText('ще не входив(ла)').waitFor();
-    await page.reload();
+    // The open page notices at once, without a reload, and says why.
     await page.getByText('Вчитель видав тобі новий пароль').waitFor({ timeout: 15_000 });
     await page.getByRole('heading', { name: 'Введи код класу' }).waitFor();
     expect(page.errors).toEqual([]);
     await pc.close();
   });
 
+  it('a pupil logs in with pictures on a small phone; the teacher logs the phone out', async () => {
+    const petro = await pictureSecret('Петро М.');
+    const phone = await computer(browser, { width: 360, height: 740 });
+    const page = await open(phone, `/join/${code3}`);
+    const noScroll = async (where: string) => {
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(overflow, where).toBeLessThanOrEqual(0);
+    };
+    await page.getByRole('button', { name: 'Петро М.' }).click({ timeout: 15_000 });
+    await page.getByRole('button', { name: petro[0], exact: true }).waitFor();
+    await noScroll('picture grid at 360px');
+    await tapPictures(page, petro);
+    await page.getByRole('heading', { name: 'Привіт, Петро М.!' }).waitFor();
+    await noScroll('student home at 360px');
+
+    const row = teacher.getByTestId('student-Петро М.');
+    await row.getByText('1 пристрій').waitFor();
+    await row.getByRole('button', { name: 'Вийти з усіх пристроїв' }).click();
+    await teacher.getByRole('alertdialog').getByRole('button', { name: 'Вийти' }).click();
+    await row.getByText('ще не входив(ла)').waitFor();
+    await page.getByText('вийшов з твоїх пристроїв').waitFor({ timeout: 15_000 });
+    expect(page.errors).toEqual([]);
+    await phone.close();
+  });
+
   it('a middle-school pupil logs in with a word password on a phone via a /join link', async () => {
     const code7 = await createClass('7-Б', 7);
     await addStudents(['Іван Т.']);
     await teacher.getByLabel('Показати паролі').check();
-    const word = (await teacher.getByTestId('student-Іван Т.').locator('.secret-word').textContent())!.trim();
+    const word = (await teacher
+      .getByTestId('student-Іван Т.')
+      .locator('.secret-word')
+      .textContent())!.trim();
     expect(word).toMatch(/^\p{L}+\d{2}$/u);
 
     const phone = await computer(browser, { width: 375, height: 740 });
@@ -201,6 +237,10 @@ describe('stage 2: classes, students, student login', () => {
     await page.getByRole('button', { name: 'Це не я / Вийти' }).click();
     await page.getByRole('alertdialog').getByRole('button', { name: 'Вийти' }).click();
     await page.getByRole('heading', { name: 'Введи код класу' }).waitFor();
+    // Leaving on purpose is not "the teacher logged you out".
+    await page.reload();
+    await page.getByRole('heading', { name: 'Введи код класу' }).waitFor({ timeout: 15_000 });
+    expect(await page.getByText('Вчитель видав тобі новий пароль').count()).toBe(0);
     expect(page.errors).toEqual([]);
     await phone.close();
   });

@@ -73,7 +73,9 @@ p {
   width: 1px;
   height: 1px;
   overflow: hidden;
-  clip: rect(0 0 0 0);
+  /* inset() works since Chrome 55 / Firefox 54; the "partial support" is about url() and masks. */
+  /* stylelint-disable-next-line plugin/no-unsupported-browser-features */
+  clip-path: inset(50%);
   white-space: nowrap;
 }
 .stack {
@@ -431,8 +433,10 @@ p {
   border-radius: 12px;
   padding: 12px 16px;
   background: #fff;
+  /* Only the value `avoid` is used: it works in Chrome 109 and Firefox 115 when printing;
+     the "partial support" is about `avoid-column` / `avoid-page`. */
+  /* stylelint-disable-next-line plugin/no-unsupported-browser-features */
   break-inside: avoid;
-  page-break-inside: avoid;
 }
 .login-card-name {
   font-size: 1.3rem;

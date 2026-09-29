@@ -51,11 +51,15 @@ beforeEach(async () => {
     await db.doc('teachers/teacher-uid').set({ code: '1234' });
     await db.doc('classes/c1').set(CLASS);
     await db.doc('joinCodes/111111').set({ classId: 'c1' });
-    await db.doc('classes/c1/roster/s1').set({ displayName: 'Оля К.', secretKind: 'pictures', pictureCount: 4, createdAt: 1 });
+    await db
+      .doc('classes/c1/roster/s1')
+      .set({ displayName: 'Оля К.', secretKind: 'pictures', pictureCount: 4, createdAt: 1 });
     await db.doc('studentSecrets/s1').set({ classId: 'c1', secret: 'cat-sun-owl-star' });
     await db.doc('classes/c2').set({ ...CLASS, name: '7-Б', grade: 7, joinCode: '222222' });
     await db.doc('joinCodes/222222').set({ classId: 'c2' });
-    await db.doc('classes/c2/roster/s2').set({ displayName: 'Іван', secretKind: 'password', createdAt: 1 });
+    await db
+      .doc('classes/c2/roster/s2')
+      .set({ displayName: 'Іван', secretKind: 'password', createdAt: 1 });
     await db.doc('studentSecrets/s2').set({ classId: 'c2', secret: 'ракета47' });
   });
 });
@@ -136,9 +140,21 @@ describe('roster and secrets', () => {
     const row = { displayName: 'Петро', secretKind: 'pictures', pictureCount: 4, createdAt: 1 };
     await assertFails(pupil().doc('classes/c1/roster/s9').set(row));
     await assertSucceeds(teacher().doc('classes/c1/roster/s9').set(row));
-    await assertFails(teacher().doc('classes/c1/roster/s8').set({ ...row, pictureCount: 5 }));
-    await assertFails(teacher().doc('classes/c1/roster/s8').set({ ...row, displayName: 'x'.repeat(61) }));
-    await assertFails(teacher().doc('classes/c1/roster/s8').set({ ...row, secret: 'leak' }));
+    await assertFails(
+      teacher()
+        .doc('classes/c1/roster/s8')
+        .set({ ...row, pictureCount: 5 }),
+    );
+    await assertFails(
+      teacher()
+        .doc('classes/c1/roster/s8')
+        .set({ ...row, displayName: 'x'.repeat(61) }),
+    );
+    await assertFails(
+      teacher()
+        .doc('classes/c1/roster/s8')
+        .set({ ...row, secret: 'leak' }),
+    );
   });
 
   it('students never read passwords', async () => {
@@ -151,7 +167,11 @@ describe('roster and secrets', () => {
     await assertFails(teacher().doc('studentSecrets/s9').set({ classId: 'c1', secret: 'x' }));
     const db = teacher();
     const batch = db.batch();
-    batch.set(db.doc('classes/c1/roster/s9'), { displayName: 'Петро', secretKind: 'password', createdAt: 1 });
+    batch.set(db.doc('classes/c1/roster/s9'), {
+      displayName: 'Петро',
+      secretKind: 'password',
+      createdAt: 1,
+    });
     batch.set(db.doc('studentSecrets/s9'), { classId: 'c1', secret: 'сова12' });
     await assertSucceeds(batch.commit());
   });
@@ -164,25 +184,57 @@ describe('student login (bindings)', () => {
   });
 
   it('wrong password, wrong class or foreign uid are rejected', async () => {
-    await assertFails(pupil().doc('bindings/pupil-uid').set(binding({ secret: 'dog-dog-dog-dog' })));
-    await assertFails(pupil().doc('bindings/pupil-uid').set(binding({ classId: 'c2' })));
+    await assertFails(
+      pupil()
+        .doc('bindings/pupil-uid')
+        .set(binding({ secret: 'dog-dog-dog-dog' })),
+    );
+    await assertFails(
+      pupil()
+        .doc('bindings/pupil-uid')
+        .set(binding({ classId: 'c2' })),
+    );
     await assertFails(pupil().doc('bindings/someone-else').set(binding()));
-    await assertFails(pupil().doc('bindings/pupil-uid').set(binding({ studentId: 'nope' })));
+    await assertFails(
+      pupil()
+        .doc('bindings/pupil-uid')
+        .set(binding({ studentId: 'nope' })),
+    );
     await assertFails(nobody().doc('bindings/pupil-uid').set(binding()));
   });
 
   it('binding fields are strict', async () => {
-    await assertFails(pupil().doc('bindings/pupil-uid').set(binding({ createdAt: 12345 })));
-    await assertFails(pupil().doc('bindings/pupil-uid').set(binding({ device: 'x'.repeat(61) })));
-    await assertFails(pupil().doc('bindings/pupil-uid').set(binding({ admin: true })));
+    await assertFails(
+      pupil()
+        .doc('bindings/pupil-uid')
+        .set(binding({ createdAt: 12345 })),
+    );
+    await assertFails(
+      pupil()
+        .doc('bindings/pupil-uid')
+        .set(binding({ device: 'x'.repeat(61) })),
+    );
+    await assertFails(
+      pupil()
+        .doc('bindings/pupil-uid')
+        .set(binding({ admin: true })),
+    );
   });
 
   it('a binding cannot be changed, only deleted and created again', async () => {
     const db = pupil();
     await assertSucceeds(db.doc('bindings/pupil-uid').set(binding()));
-    await assertFails(db.doc('bindings/pupil-uid').set(binding({ studentId: 's2', classId: 'c2', secret: 'ракета47' })));
+    await assertFails(
+      db
+        .doc('bindings/pupil-uid')
+        .set(binding({ studentId: 's2', classId: 'c2', secret: 'ракета47' })),
+    );
     await assertSucceeds(db.doc('bindings/pupil-uid').delete());
-    await assertSucceeds(db.doc('bindings/pupil-uid').set(binding({ studentId: 's2', classId: 'c2', secret: 'ракета47' })));
+    await assertSucceeds(
+      db
+        .doc('bindings/pupil-uid')
+        .set(binding({ studentId: 's2', classId: 'c2', secret: 'ракета47' })),
+    );
   });
 
   it("students don't see other devices; the teacher does", async () => {
@@ -203,7 +255,9 @@ describe('student login (bindings)', () => {
   it('a new password logs out old devices', async () => {
     await assertSucceeds(pupil().doc('bindings/pupil-uid').set(binding()));
     await assertSucceeds(pupil().doc('classes/c1').get());
-    await assertSucceeds(teacher().doc('studentSecrets/s1').set({ classId: 'c1', secret: 'fox-fox-owl-sun' }));
+    await assertSucceeds(
+      teacher().doc('studentSecrets/s1').set({ classId: 'c1', secret: 'fox-fox-owl-sun' }),
+    );
     await assertFails(pupil().doc('classes/c1').get());
   });
 
@@ -211,6 +265,10 @@ describe('student login (bindings)', () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       await ctx.firestore().doc('studentSecrets/s1').set({ classId: 'c1', secret: 'cat-sun-owl' });
     });
-    await assertSucceeds(pupil().doc('bindings/pupil-uid').set(binding({ secret: 'cat-sun-owl' })));
+    await assertSucceeds(
+      pupil()
+        .doc('bindings/pupil-uid')
+        .set(binding({ secret: 'cat-sun-owl' })),
+    );
   });
 });

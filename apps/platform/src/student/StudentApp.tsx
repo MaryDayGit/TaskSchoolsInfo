@@ -25,6 +25,9 @@ import { useConfirm } from '../components/Dialog';
 import { ErrorText, Spinner } from '../components/Modal';
 import { Picture } from '../components/Picture';
 
+const LOGGED_OUT =
+  'Вчитель видав тобі новий пароль або вийшов з твоїх пристроїв. Увійди ще раз з карткою.';
+
 interface Guest {
   pc: number;
   name: string;
@@ -36,15 +39,28 @@ export function StudentApp() {
   const binding = useDoc<BindingDoc>(user ? bindingRef(user.uid) : null);
   const [guest, setGuest] = useState<Guest | null>(() => store.get<Guest | null>('guest', null));
   const [notice, setNotice] = useState<string | null>(null);
-  const markStale = useCallback(
-    () => setNotice('Вчитель видав тобі новий пароль. Увійди ще раз з новою карткою.'),
-    [],
-  );
+  const markStale = useCallback(() => {
+    store.remove('bound');
+    setNotice(LOGGED_OUT);
+  }, []);
+
+  // «Новий пароль» and «Вийти з усіх пристроїв» delete this device's binding. Remember
+  // that the device was logged in, so the pupil is told why the login screen is back.
+  // A cached answer is skipped: offline, the binding may just not be loaded yet.
+  const known = !!user && !binding.loading && !binding.pending && !binding.fromCache;
+  useEffect(() => {
+    if (!known) return;
+    if (binding.exists) store.set('bound', true);
+    else if (store.get('bound', false)) markStale();
+  }, [known, binding.exists, markStale]);
 
   let body: ReactNode;
   if (!user || binding.loading) {
-    body = authError || binding.error ? <ErrorText error={authError ?? binding.error} /> : <Spinner />;
-  } else if (binding.exists && binding.data) {
+    body =
+      authError || binding.error ? <ErrorText error={authError ?? binding.error} /> : <Spinner />;
+  } else if (binding.exists && binding.data && !binding.pending) {
+    // Only a binding the server accepted: a wrong password is written locally first
+    // and then rejected, and the login form must stay on screen to say so.
     body = <BoundHome uid={user.uid} b={binding.data} onStale={markStale} />;
   } else if (guest) {
     body = (
@@ -117,7 +133,9 @@ function BoundHome({ uid, b, onStale }: { uid: string; b: BindingDoc; onStale: (
       text: 'Щоб увійти знову, знадобиться твоя картка з паролем.',
       ok: 'Вийти',
     });
-    if (ok) await deleteDoc(bindingRef(uid));
+    if (!ok) return;
+    store.remove('bound');
+    await deleteDoc(bindingRef(uid));
   };
 
   return (
@@ -294,7 +312,11 @@ function LoginFlow({
     <div className="stack">
       <h1 className="center">Привіт, {student.data.displayName}!</h1>
       {student.data.secretKind === 'pictures' ? (
-        <PictureLogin count={student.data.pictureCount ?? 4} onSubmit={login} onInput={() => setError(null)} />
+        <PictureLogin
+          count={student.data.pictureCount ?? 4}
+          onSubmit={login}
+          onInput={() => setError(null)}
+        />
       ) : (
         <PasswordLogin onSubmit={login} />
       )}
@@ -420,7 +442,8 @@ function GuestForm({ onDone, onBack }: { onDone: (g: Guest) => void; onBack: () 
         e.preventDefault();
         const n = Number(pc);
         const cleanName = clean(name, NAME_MAX);
-        if (!Number.isInteger(n) || n < 1 || n > 99) return setError('Номер комп’ютера — від 1 до 99');
+        if (!Number.isInteger(n) || n < 1 || n > 99)
+          return setError('Номер комп’ютера — від 1 до 99');
         if (!cleanName) return setError("Напиши своє ім'я та прізвище");
         onDone({ pc: n, name: cleanName });
       }}

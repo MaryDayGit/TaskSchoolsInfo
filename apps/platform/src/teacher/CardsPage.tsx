@@ -2,7 +2,13 @@ import { collection, query, where } from 'firebase/firestore';
 import { Link, useParams } from 'react-router';
 import { db } from '../firebase/app';
 import { useDoc, useQuery } from '../firebase/watch';
-import { classRef, rosterCol, type ClassDoc, type RosterDoc, type SecretDoc } from '../data/classes';
+import {
+  classRef,
+  rosterCol,
+  type ClassDoc,
+  type RosterDoc,
+  type SecretDoc,
+} from '../data/classes';
 import { ErrorText, Spinner } from '../components/Modal';
 import { SecretView } from '../components/SecretView';
 

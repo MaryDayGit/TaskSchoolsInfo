@@ -30,7 +30,7 @@ npm run dev
 | `npm test`                         | все тесты (Vitest)                                                 |
 | `npx vitest run --project server`  | только тесты сервера (или `--project shared`)                      |
 | `npx vitest --project server live` | тесты по имени файла в watch-режиме                                |
-| `npm run lint`                     | ESLint                                                             |
+| `npm run lint`                     | ESLint + stylelint (CSS платформы)                                 |
 | `npm run format` / `format:check`  | Prettier                                                           |
 | `npm run typecheck`                | TypeScript во всех пакетах                                         |
 | `npm run check`                    | всё вместе, как в CI                                               |

@@ -60,7 +60,11 @@ export function ClassPage() {
       <ClassHeader id={id} c={c} />
       <AddStudents id={id} grade={c.grade} students={students} />
       <ErrorText error={roster.error} />
-      {roster.loading ? <Spinner /> : <StudentTable classId={id} grade={c.grade} students={students} />}
+      {roster.loading ? (
+        <Spinner />
+      ) : (
+        <StudentTable classId={id} grade={c.grade} students={students} />
+      )}
     </main>
   );
 }
@@ -169,7 +173,6 @@ function SettingsModal({ id, c, onClose }: { id: string; c: ClassDoc; onClose: (
 
 function AddStudents({ id, grade, students }: { id: string; grade: number; students: Student[] }) {
   const [text, setText] = useState('');
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const names = [
@@ -181,7 +184,7 @@ function AddStudents({ id, grade, students }: { id: string; grade: number; stude
     ),
   ];
 
-  const submit = async (e: FormEvent) => {
+  const submit = (e: FormEvent) => {
     e.preventDefault();
     const existing = new Set(students.map((s) => s.data.displayName.toLowerCase()));
     const dup = names.filter((n) => existing.has(n.toLowerCase()));
@@ -193,16 +196,15 @@ function AddStudents({ id, grade, students }: { id: string; grade: number; stude
     if (students.length + names.length > MAX_STUDENTS) {
       return setError(`У класі може бути не більше ${MAX_STUDENTS} учнів`);
     }
-    setBusy(true);
     setError(null);
-    try {
-      await addStudents(id, grade, names);
-      setText('');
-    } catch (err) {
+    // The rows appear at once (Firestore writes locally first), so the field is
+    // cleared now rather than after the server answers: that could take a while on
+    // a weak connection and would wipe whatever the teacher typed meanwhile.
+    setText('');
+    addStudents(id, grade, names).catch((err: unknown) => {
       setError(errorText(err));
-    } finally {
-      setBusy(false);
-    }
+      setText((cur) => cur || names.join('\n'));
+    });
   };
 
   return (
@@ -217,13 +219,13 @@ function AddStudents({ id, grade, students }: { id: string; grade: number; stude
           placeholder={'Оля К.\nПетро М.\nСофія Д.'}
         />
         <small className="hint">
-          Кожне ім'я з нового рядка; можна вставити стовпчик із таблиці. Радимо: ім'я та перша літера
-          прізвища.
+          Кожне ім'я з нового рядка; можна вставити стовпчик із таблиці. Радимо: ім'я та перша
+          літера прізвища.
         </small>
       </label>
       <ErrorText error={error} />
       <div>
-        <button className="btn" disabled={busy || names.length === 0}>
+        <button className="btn" disabled={names.length === 0}>
           Додати{names.length > 0 ? ` (${names.length})` : ''}
         </button>
       </div>
@@ -231,7 +233,15 @@ function AddStudents({ id, grade, students }: { id: string; grade: number; stude
   );
 }
 
-function StudentTable({ classId, grade, students }: { classId: string; grade: number; students: Student[] }) {
+function StudentTable({
+  classId,
+  grade,
+  students,
+}: {
+  classId: string;
+  grade: number;
+  students: Student[];
+}) {
   const [showSecrets, setShowSecrets] = useState(false);
   const [renaming, setRenaming] = useState<Student | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -269,7 +279,11 @@ function StudentTable({ classId, grade, students }: { classId: string; grade: nu
   return (
     <section className="stack" style={{ marginTop: 16 }}>
       <label className="checkbox">
-        <input type="checkbox" checked={showSecrets} onChange={(e) => setShowSecrets(e.target.checked)} />
+        <input
+          type="checkbox"
+          checked={showSecrets}
+          onChange={(e) => setShowSecrets(e.target.checked)}
+        />
         Показати паролі
       </label>
       <ErrorText error={error ?? secrets.error} />
@@ -383,7 +397,9 @@ function StudentTable({ classId, grade, students }: { classId: string; grade: nu
       {renaming && (
         <RenameModal
           student={renaming}
-          taken={students.filter((s) => s.id !== renaming.id).map((s) => s.data.displayName.toLowerCase())}
+          taken={students
+            .filter((s) => s.id !== renaming.id)
+            .map((s) => s.data.displayName.toLowerCase())}
           onClose={() => setRenaming(null)}
           onSave={(name) => renameStudent(classId, renaming.id, name)}
         />
@@ -420,7 +436,13 @@ function RenameModal({
   return (
     <Modal title="Змінити ім'я" onClose={onClose}>
       <form className="stack" onSubmit={submit}>
-        <input className="input" value={name} onChange={(e) => setName(e.target.value)} autoFocus maxLength={NAME_MAX} />
+        <input
+          className="input"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoFocus
+          maxLength={NAME_MAX}
+        />
         <ErrorText error={error} />
         <div className="modal-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>

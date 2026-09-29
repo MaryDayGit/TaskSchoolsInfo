@@ -14,6 +14,8 @@ export interface DocState<T> {
   data: T | null;
   /** Данные из локального кеша (нет связи с сервером). */
   fromCache: boolean;
+  /** Локальная запись ещё не подтверждена сервером (и может быть отклонена правилами). */
+  pending: boolean;
   error: string | null;
 }
 
@@ -28,12 +30,20 @@ export function useDoc<T = DocumentData>(ref: DocumentReference | null): DocStat
     exists: false,
     data: null,
     fromCache: false,
+    pending: false,
     error: null,
   });
 
   useEffect(() => {
     // A different document: don't show the previous one's data meanwhile.
-    setS({ loading: true, exists: false, data: null, fromCache: false, error: null });
+    setS({
+      loading: true,
+      exists: false,
+      data: null,
+      fromCache: false,
+      pending: false,
+      error: null,
+    });
     if (!ref) return;
     let stopped = false;
     let unsubscribe: (() => void) | null = null;
@@ -50,6 +60,7 @@ export function useDoc<T = DocumentData>(ref: DocumentReference | null): DocStat
             exists: snap.exists(),
             data: snap.exists() ? (snap.data() as T) : null,
             fromCache: snap.metadata.fromCache,
+            pending: snap.metadata.hasPendingWrites,
             error: null,
           }),
         (err) => {

@@ -77,7 +77,13 @@ export async function createClass(name: string, grade: number): Promise<string> 
   const id = newId();
   await withFreshCode(async (joinCode) => {
     const batch = writeBatch(db);
-    batch.set(classRef(id), { name, grade, joinCode, createdAt: serverTimestamp(), archived: false });
+    batch.set(classRef(id), {
+      name,
+      grade,
+      joinCode,
+      createdAt: serverTimestamp(),
+      archived: false,
+    });
     batch.set(joinCodeRef(joinCode), { classId: id });
     await batch.commit();
   });
@@ -165,14 +171,20 @@ export async function renameStudent(classId: string, studentId: string, displayN
 export async function resetSecret(classId: string, studentId: string, grade: number) {
   const { kind, secret, pictureCount } = generateSecret(grade);
   const batch = writeBatch(db);
-  batch.set(rosterRef(classId, studentId), { secretKind: kind, pictureCount: pictureCount ?? null }, { merge: true });
+  batch.set(
+    rosterRef(classId, studentId),
+    { secretKind: kind, pictureCount: pictureCount ?? null },
+    { merge: true },
+  );
   batch.set(secretRef(studentId), { classId, secret });
   await batch.commit();
   await logoutAllDevices(studentId);
 }
 
 export async function logoutAllDevices(studentId: string) {
-  const snap = await getDocs(query(collection(db, 'bindings'), where('studentId', '==', studentId)));
+  const snap = await getDocs(
+    query(collection(db, 'bindings'), where('studentId', '==', studentId)),
+  );
   await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
 }
 
