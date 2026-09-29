@@ -19,3 +19,33 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  # Unified platform (apps/platform) on Firebase emulators, in Chromium 109 —
+  # the browser version of the school PCs (docs/platform/ROADMAP.md, "Тесты").
+  platform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Cache Chromium 109 and Firebase emulators
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache/chromium-109
+            ~/.cache/firebase/emulators
+          key: platform-${{ runner.os }}-chromium-1070052-firebase-tools-15.32.0
+      - run: npm ci
+      - run: node tools/get-chromium109.mjs
+      - name: Firestore rules (incl. all Клас-пульт rules tests)
+        run: npm run test:rules
+      - name: Scenarios in Chromium 109
+        run: npm run test:e2e
+      - name: No emoji, student page size budget
+        run: npm run check:platform

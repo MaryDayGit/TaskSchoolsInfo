@@ -5,6 +5,7 @@ COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/
 COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/
+COPY apps/platform/package.json apps/platform/
 RUN npm ci
 COPY . .
 RUN npm run build
@@ -16,6 +17,7 @@ COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/
 COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/
+COPY apps/platform/package.json apps/platform/
 RUN npm ci --omit=dev --workspace @infoklas/server --include-workspace-root=false
 
 # ---- runtime ----

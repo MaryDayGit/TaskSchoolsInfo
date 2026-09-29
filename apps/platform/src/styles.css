@@ -1,0 +1,389 @@
+/*
+ * ІнфоКлас: стили единой платформы.
+ * Только возможности Chrome 109 / Firefox 115: без :has(), @container, вложенности CSS.
+ * Палитра страницы ученика — из Клас-пульта (тема «Молодші»).
+ */
+:root {
+  --font: 'Nunito Variable', 'Segoe UI', Arial, sans-serif;
+  --ink: #1d2b7c;
+  --ink-dark: #131d5a;
+  --sun: #ffcc33;
+  --sun-dark: #e9ae00;
+  --ok: #1b9a68;
+  --bad: #d9443a;
+  --bg: #eef1fa;
+  --surface: #ffffff;
+  --border: #d6dbee;
+  --text: #1a1f3a;
+  --muted: #5a6189;
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+  --primary-soft: #eceafe;
+  --danger-soft: #fdecea;
+  --radius: 14px;
+  --radius-sm: 10px;
+  --shadow: 0 1px 2px rgb(20 24 60 / 6%), 0 4px 16px rgb(20 24 60 / 6%);
+  --focus: 0 0 0 3px rgb(79 70 229 / 40%);
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+}
+body {
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+}
+h1,
+h2 {
+  line-height: 1.25;
+  margin: 0 0 0.5em;
+  font-weight: 800;
+}
+h1 {
+  font-size: 1.7rem;
+}
+h2 {
+  font-size: 1.25rem;
+}
+p {
+  margin: 0 0 0.75em;
+}
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+}
+.muted {
+  color: var(--muted);
+}
+.small {
+  font-size: 0.875rem;
+}
+.center {
+  text-align: center;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ---------- Layout ---------- */
+
+.topbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.topbar-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.topbar-end {
+  margin-left: auto;
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  font-size: 1.15rem;
+}
+.brand-light {
+  color: #fff;
+}
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px;
+}
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+/* ---------- Controls ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 8px 18px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  background: var(--primary);
+  color: #fff;
+}
+.btn:hover {
+  background: var(--primary-hover);
+}
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+.btn-secondary:hover {
+  background: var(--bg);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--muted);
+}
+.btn-ghost:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+.btn-danger {
+  background: var(--bad);
+}
+.btn-sm {
+  min-height: 34px;
+  padding: 4px 12px;
+  font-size: 0.9rem;
+}
+.btn-lg {
+  min-height: 52px;
+  font-size: 1.1rem;
+}
+.btn-block {
+  width: 100%;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field > span {
+  font-weight: 700;
+}
+.input {
+  font: inherit;
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 16px;
+}
+.input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: var(--focus);
+}
+.hint {
+  font-size: 0.875rem;
+  color: var(--muted);
+  margin: 0;
+}
+.alert {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  margin: 0;
+}
+.alert-error {
+  background: var(--danger-soft);
+  color: #8a1c14;
+}
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 4px solid var(--primary-soft);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 32px auto;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 3s;
+  }
+}
+
+/* ---------- Login ---------- */
+
+.login-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.login {
+  width: 100%;
+  max-width: 440px;
+}
+.login-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ---------- Modal ---------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(15 18 40 / 45%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 50;
+}
+.modal {
+  width: 100%;
+  max-width: 460px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 24px;
+  box-shadow: 0 20px 60px rgb(0 0 0 / 25%);
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* ---------- Teacher home ---------- */
+
+.stages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.stages li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.stage-mark {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  flex: none;
+}
+.stages li.done .stage-mark {
+  background: var(--ok);
+  border-color: var(--ok);
+}
+.picture-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 12px;
+}
+.picture-gallery figure {
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+.picture-gallery figcaption {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+/* ---------- Student ---------- */
+
+.student {
+  min-height: 100vh;
+  background: var(--ink);
+  color: #fff;
+}
+.student-bar {
+  padding: 12px 20px;
+}
+.student-main {
+  display: flex;
+  justify-content: center;
+  padding: 24px 16px;
+}
+.task-card {
+  width: 100%;
+  max-width: 640px;
+  background: #fff;
+  color: var(--text);
+  border-radius: 18px;
+  padding: 28px;
+  box-shadow: 0 10px 0 var(--ink-dark);
+}
+.status-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+}
+.dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+.dot-ok {
+  background: var(--ok);
+}
+.dot-wait {
+  background: var(--sun-dark);
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 16px 12px 48px;
+  }
+  .task-card {
+    padding: 20px;
+  }
+}

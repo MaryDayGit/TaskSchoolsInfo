@@ -1,0 +1,130 @@
+// Правила доступа единой платформы ІнфоКлас (Firebase-проект klas-pult).
+//
+// Этап 1: правила Клас-пульта БЕЗ ИЗМЕНЕНИЙ (klas-pult @ d3f4eac, firestore.rules).
+// Пока Клас-пульт работает на уроках, всё, что ниже, должно оставаться
+// совместимым с ним: у проекта один набор правил на всю базу.
+// Новые коллекции платформы добавляются отдельными блоками (см.
+// docs/platform/DATA_MODEL.md и docs/platform/MIGRATION.md, раздел 3).
+
+rules_version = '2';
+
+// Правила доступа Клас-пульта.
+//
+// Все входят анонимно (без регистрации и почты). Учитель — тот, чей
+// анонимный пользователь записан в teachers/{uid}. Попасть туда можно, только
+// зная код учителя: код лежит в secret/teacher, который никто не может
+// прочитать (правила сравнивают его сами). Код придумывается один раз при
+// первом открытии пульта; забытый код сбрасывается в консоли Firebase
+// (см. README, «Если что-то не работает»).
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isTeacher() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/teachers/$(request.auth.uid));
+    }
+
+    function shortString(value) {
+      return value is string && value.size() <= 60;
+    }
+
+    function validCode(value) {
+      return value is string && value.size() >= 4 && value.size() <= 64;
+    }
+
+    // ---------- Код учителя ----------
+
+    // Флаг «код уже придуман» — чтобы пульт знал, какую форму показать.
+    // Создаётся один раз вместе с secret/teacher.
+    match /setup/state {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['codeSet'])
+        && request.resource.data.codeSet == true
+        && existsAfter(/databases/$(database)/documents/secret/teacher);
+    }
+
+    // Сам код. Создаётся один раз, прочитать или изменить нельзя никому.
+    match /secret/teacher {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['code'])
+        && validCode(request.resource.data.code)
+        && existsAfter(/databases/$(database)/documents/setup/state);
+    }
+
+    // Отметка «этот браузер — учитель». Создать можно только себе и только
+    // с правильным кодом. «Вийти» в пульте удаляет отметку.
+    match /teachers/{uid} {
+      allow get, delete: if signedIn() && request.auth.uid == uid;
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['code'])
+        && request.resource.data.code
+           == getAfter(/databases/$(database)/documents/secret/teacher).data.code;
+    }
+
+    // Сверка часов: каждый пишет и читает только своё серверное время.
+    match /clock/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['t'])
+        && request.resource.data.t == request.time;
+    }
+
+    // ---------- Урок ----------
+
+    // Текущее задание, блокировка, последний тест, отметка сброса.
+    match /control/state {
+      allow read: if signedIn();
+      allow write: if isTeacher();
+    }
+
+    // Карточка ученика: pcId вида pc01..pc99.
+    match /students/{pcId} {
+      allow create, update: if signedIn()
+        && pcId.matches('pc[0-9]{2}')
+        && request.resource.data.keys().hasOnly(
+             ['pc', 'num', 'name', 'lastSeen', 'openedAt', 'submittedAt', 'handAt', 'handId', 'doneAt'])
+        && shortString(request.resource.data.name);
+      allow read, delete: if isTeacher();
+    }
+
+    // Вопросы тестов (без правильных ответов).
+    match /tests/{testId} {
+      allow read: if signedIn();
+      allow write: if isTeacher();
+    }
+
+    // Правильные ответы — только учителю.
+    match /keys/{testId} {
+      allow read, write: if isTeacher();
+    }
+
+    // История тестов: снимок вопросов и правильных ответов — только учителю.
+    match /sessions/{sessionId} {
+      allow read, write: if isTeacher();
+    }
+
+    // Разбор теста (вопросы и правильные ответы) — существует, только пока
+    // учитель показывает результаты; тогда его читают ученики.
+    match /reveals/{sessionId} {
+      allow read: if signedIn();
+      allow write: if isTeacher();
+    }
+
+    // Ответы учеников: только создание, изменить или прочитать нельзя.
+    match /results/{resultId} {
+      allow create: if signedIn()
+        && request.resource.data.answers is list
+        && request.resource.data.answers.size() <= 100
+        && shortString(request.resource.data.name);
+      allow read, delete: if isTeacher();
+    }
+  }
+}
