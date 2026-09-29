@@ -10,7 +10,8 @@
     "./quiz": "./src/quiz.ts",
     "./importer": "./src/importer.ts",
     "./results": "./src/results.ts",
-    "./csv": "./src/csv.ts"
+    "./csv": "./src/csv.ts",
+    "./lesson": "./src/lesson.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"

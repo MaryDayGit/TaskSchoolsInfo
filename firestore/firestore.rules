@@ -269,12 +269,16 @@ service cloud.firestore {
         && (data.maxAttempts == null
             || (data.maxAttempts is int && data.maxAttempts >= 1 && data.maxAttempts <= 20))
         && data.reveal in ['immediate', 'after_due', 'never']
-        && data.revealNow is bool;
+        && data.revealNow is bool
+        && (!('roomId' in data) || data.roomId == null || data.roomId is string);
     }
 
     // Задание: снимок вопросов БЕЗ ответов. Читают учитель и ученики класса.
     match /assignments/{aId} {
       allow get, list: if isTeacher() || isStudentOf(resource.data.classId);
+      // Тест на уроке видит и гость (номер ПК + имя), как тесты Клас-пульта:
+      // только сам документ по id, без ответов.
+      allow get: if signedIn() && resource.data.kind == 'lesson';
       allow create: if isTeacher()
         && validAssignment(request.resource.data)
         && exists(/databases/$(database)/documents/classes/$(request.resource.data.classId));
@@ -296,7 +300,9 @@ service cloud.firestore {
         || (isStudentOf(a().classId) && (
              (a().reveal == 'immediate' && submitted())
           || (a().revealNow == true && submitted())
-          || (a().reveal == 'after_due' && a().dueAt != null && request.time > a().dueAt)));
+          || (a().reveal == 'after_due' && a().dueAt != null && request.time > a().dueAt)))
+        // «Показати учням результати» на уроке: и гостям, как reveals Клас-пульта.
+        || (signedIn() && a().kind == 'lesson' && a().revealNow == true);
       allow create, update: if isTeacher()
         && request.resource.data.keys().hasOnly(['questions'])
         && validQuestions(request.resource.data.questions);
@@ -329,6 +335,53 @@ service cloud.firestore {
       allow get, list: if isTeacher()
         || (isStudentOf(resource.data.classId) && resource.data.studentId == myStudentId());
       allow delete: if isTeacher();
+    }
+
+    // =====================================================================
+    // Этап 4: пульт урока (Клас-пульт: control/state → rooms, students → pcs,
+    // results → submissions и guestResults).
+    // =====================================================================
+
+    function roomPath(roomId) {
+      return /databases/$(database)/documents/rooms/$(roomId);
+    }
+
+    // Состояние урока: задание на экранах, блокировка, таймер, руки, класс.
+    match /rooms/{roomId} {
+      allow read: if signedIn();
+      allow create, update: if isTeacher()
+        && request.resource.data.keys().hasOnly(['classId', 'className', 'task', 'lastTest', 'locked',
+                                                 'theme', 'timer', 'handsDown', 'resetAt'])
+        && (!('locked' in request.resource.data) || request.resource.data.locked is bool)
+        && (!('theme' in request.resource.data) || request.resource.data.theme in ['junior', 'senior']);
+      allow delete: if isTeacher();
+
+      // Карточка ПК: pc01..pc99. Ученик из списка класса урока пишет свой
+      // studentId (проверяется по привязке), гость — null.
+      match /pcs/{pcId} {
+        allow create, update: if signedIn()
+          && pcId.matches('pc[0-9]{2}')
+          && request.resource.data.keys().hasOnly(['pc', 'num', 'name', 'studentId', 'lastSeen', 'openedAt',
+                                                   'submittedAt', 'handAt', 'handId', 'doneAt'])
+          && shortString(request.resource.data.name)
+          && (!('studentId' in request.resource.data) || request.resource.data.studentId == null
+              || (request.resource.data.studentId == myStudentId()
+                  && isStudentOf(get(roomPath(roomId)).data.classId)));
+        allow read, delete: if isTeacher();
+      }
+    }
+
+    // Ответы гостя на тест урока (гость не в списке класса, поэтому не в журнале).
+    match /guestResults/{resultId} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['assignmentId', 'pcId', 'name', 'answers', 'submittedAt'])
+        && request.resource.data.assignmentId is string
+        && get(assignmentPath(request.resource.data.assignmentId)).data.kind == 'lesson'
+        && request.resource.data.pcId is string && request.resource.data.pcId.matches('pc[0-9]{2}')
+        && validText(request.resource.data.name, 60)
+        && request.resource.data.answers is map && request.resource.data.answers.size() <= 50
+        && request.resource.data.submittedAt == request.time;
+      allow read, delete: if isTeacher();
     }
   }
 }

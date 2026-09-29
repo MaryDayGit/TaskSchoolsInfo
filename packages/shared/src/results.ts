@@ -152,3 +152,73 @@ export function journalToCsv(j: Journal): string {
   }
   return toCsv(rows);
 }
+
+// ---------------------------------------------------------------------------
+// A test on the lesson: pupils from the class list and guests (PC number + name)
+
+export interface GuestSubmission {
+  pcId: string;
+  name: string;
+  answers: AnswerMap;
+  submittedAt: number | null;
+}
+
+export interface LessonRow extends Score {
+  /** studentId, or `guest:pc07` for a guest. */
+  key: string;
+  studentId: string | null;
+  pcId: string | null;
+  name: string;
+  perQuestion: boolean[];
+  answers: AnswerMap;
+}
+
+/**
+ * Rows for the lesson results table: each pupil's best attempt and each guest
+ * PC's latest answers (as in Клас-пульт, a PC may resubmit).
+ */
+export function lessonRows(input: {
+  questions: Question[];
+  submissions: (RawSubmission & { pcId?: string | null })[];
+  guests: GuestSubmission[];
+  names: Map<string, string>;
+}): LessonRow[] {
+  const rows: LessonRow[] = [];
+  const best = assignmentResults(input.questions, input.submissions);
+  for (const r of best.values()) {
+    const sub = input.submissions.find(
+      (s) => s.studentId === r.studentId && s.attempt === r.bestAttempt,
+    );
+    rows.push({
+      key: r.studentId,
+      studentId: r.studentId,
+      pcId: sub?.pcId ?? null,
+      name: input.names.get(r.studentId) ?? '—',
+      correctCount: r.correctCount,
+      total: r.total,
+      perQuestion: r.perQuestion,
+      answers: r.answers,
+    });
+  }
+  const latest = new Map<string, GuestSubmission>();
+  for (const g of input.guests) {
+    const prev = latest.get(g.pcId);
+    if (!prev || (g.submittedAt ?? Infinity) >= (prev.submittedAt ?? Infinity))
+      latest.set(g.pcId, g);
+  }
+  for (const g of latest.values()) {
+    const graded = gradeAnswers(input.questions, g.answers ?? {});
+    rows.push({
+      key: `guest:${g.pcId}`,
+      studentId: null,
+      pcId: g.pcId,
+      name: g.name,
+      correctCount: graded.correctCount,
+      total: graded.total,
+      perQuestion: graded.perQuestion.map((p) => p.correct),
+      answers: g.answers ?? {},
+    });
+  }
+  const num = (r: LessonRow) => (r.pcId ? Number(r.pcId.slice(2)) : 1000);
+  return rows.sort((a, b) => num(a) - num(b) || a.name.localeCompare(b.name, 'uk'));
+}

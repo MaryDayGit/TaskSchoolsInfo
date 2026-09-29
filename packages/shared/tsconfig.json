@@ -1,4 +1,6 @@
 {
   "extends": "../../tsconfig.base.json",
+  // URL is used by the lesson helpers; it exists both in browsers and in Node.
+  "compilerOptions": { "lib": ["ES2023", "DOM"] },
   "include": ["src"]
 }
