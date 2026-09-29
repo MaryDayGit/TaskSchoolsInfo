@@ -1,5 +1,7 @@
 # Публикация платформы в интернете
 
+> **Опубликовано 29.09.2026:** https://infoklas-school.web.app (кабинет учителя — `/t`, код учителя — как в Клас-пульте). Правила Firestore опубликованы; часть Клас-пульта в них не изменилась (проверено сравнением с действовавшими правилами).
+
 Платформа публикуется автоматически из GitHub (`.github/workflows/deploy-platform.yml`) в Firebase-проект `klas-pult`:
 
 - **сайт платформы — на отдельный адрес**, по умолчанию **https://infoklas-school.web.app**. Это второй сайт того же проекта;
@@ -45,6 +47,22 @@
   - На школьных ПК её нужно открыть один раз и ввести номер ПК.
   - Пока идёт проверка, на ПК может быть открыт и Клас-пульт.
 - **Данные:** тесты и история Клас-пульта, а также классы старого ІнфоКласа (Render) в платформу пока **не перенесены** — это этап 6. Классы, учеников и тесты в платформе нужно создать заново (тесты можно импортировать текстом).
+
+## Вручную с компьютера
+
+Если ключ Firebase лежит у вас в файле (не в GitHub):
+
+```
+npm ci
+npm run test:rules
+npm run build -w @infoklas/platform
+set GOOGLE_APPLICATION_CREDENTIALS=C:\путь\к\ключу.json      (Windows; в Linux/macOS — export …)
+node tools/deploy-rules.mjs
+npx firebase-tools@15.32.0 --project klas-pult target:apply hosting platform infoklas-school
+npx firebase-tools@15.32.0 --project klas-pult deploy --only hosting:platform
+```
+
+Правила публикуются скриптом `tools/deploy-rules.mjs` через Firebase Rules API: `firebase deploy --only firestore:rules` сначала проверяет, включён ли Firestore API, а у ключа Admin SDK на эту проверку нет прав (ошибка 403 «Permission denied to get service»).
 
 ## Важно: Клас-пульт больше не публикует правила
 
