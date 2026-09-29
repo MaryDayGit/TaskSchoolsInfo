@@ -58,7 +58,8 @@ export default function Homework({
   let body;
   if (a.loading || subs.loading) body = <Spinner />;
   else if (!a.exists || !a.data || a.data.classId !== classId) {
-    body = <ErrorText error={a.error ?? 'Завдання не знайдено. Можливо, вчитель його видалив.'} />;
+    // A deleted assignment reads as «no access» (the rules need the document): say it plainly.
+    body = <ErrorText error="Завдання не знайдено. Можливо, вчитель його видалив." />;
   } else {
     const submitted = subs.docs.map((d) => d.data).sort((x, y) => x.attempt - y.attempt);
     body = (
