@@ -1,17 +1,25 @@
+import { pino } from 'pino';
 import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { connectPostgres } from './db/client.js';
 import { attachLiveSocket } from './live/socket.js';
 
-const config = loadConfig();
-const { db, close } = await connectPostgres(config.databaseUrl);
+const log = pino({ level: process.env.LOG_LEVEL ?? 'info' });
 
-const app = await buildApp({
-  config,
-  db,
-  logger:
-    config.env === 'development' ? { level: 'info', transport: undefined } : { level: 'info' },
+// Keep serving other users when a single request fails in an unexpected way; the
+// hosting platform restarts the process only if it really crashes.
+process.on('unhandledRejection', (reason) =>
+  log.error({ err: reason }, 'unhandled promise rejection'),
+);
+process.on('uncaughtException', (err) => {
+  log.fatal({ err }, 'uncaught exception, exiting');
+  process.exit(1);
 });
+
+const config = loadConfig();
+const { db, close } = await connectPostgres(config.databaseUrl, log);
+
+const app = await buildApp({ config, db, loggerInstance: log });
 await app.live.abortStaleSessions();
 const io = attachLiveSocket(app, app.server);
 
@@ -21,7 +29,9 @@ let shuttingDown = false;
 async function shutdown(signal: string) {
   if (shuttingDown) return;
   shuttingDown = true;
-  app.log.info({ signal }, 'shutting down');
+  log.info({ signal }, 'shutting down');
+  // Never hang a deploy: force-exit if closing takes too long.
+  setTimeout(() => process.exit(1), 10_000).unref();
   io.disconnectSockets(true);
   await app.close(); // also saves results of unfinished live games
   await close();

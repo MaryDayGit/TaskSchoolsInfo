@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import Fastify, { type FastifyServerOptions } from 'fastify';
+import Fastify, { type FastifyBaseLogger } from 'fastify';
 import cookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
 import jwt from '@fastify/jwt';
@@ -30,12 +30,13 @@ declare module 'fastify' {
 export interface BuildAppOptions {
   config: Config;
   db: Db;
-  logger?: FastifyServerOptions['logger'];
+  /** Shared logger (production); tests run without logging. */
+  loggerInstance?: FastifyBaseLogger;
 }
 
-export async function buildApp({ config, db, logger = false }: BuildAppOptions) {
+export async function buildApp({ config, db, loggerInstance }: BuildAppOptions) {
   const app = Fastify({
-    logger,
+    ...(loggerInstance ? { loggerInstance } : { logger: false }),
     trustProxy: config.trustProxy,
     bodyLimit: 512 * 1024,
   });
@@ -81,7 +82,9 @@ export async function buildApp({ config, db, logger = false }: BuildAppOptions) 
     return reply.status(500).send({ error: 'Помилка сервера. Спробуйте ще раз.' });
   });
 
-  app.get('/api/health', async () => ({ ok: true }));
+  // Used by uptime monitors every few minutes. It deliberately doesn't touch the
+  // database, so pings keep the server awake without keeping a serverless DB awake.
+  app.get('/api/health', async () => ({ ok: true, uptime: Math.round(process.uptime()) }));
 
   await app.register(teacherAuthRoutes);
   await app.register(classRoutes);
