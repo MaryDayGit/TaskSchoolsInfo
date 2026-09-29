@@ -73,6 +73,9 @@ jobs:
           # The site is created once (it is a second site of the same project).
           $FB hosting:sites:get "$SITE" >/dev/null 2>&1 || $FB hosting:sites:create "$SITE"
           $FB target:apply hosting platform "$SITE"
-          $FB deploy --only firestore:rules,hosting:platform --message "platform ${GITHUB_SHA::7}"
+          # Rules through the Rules API: `firebase deploy --only firestore:rules` first
+          # checks the Firestore API via serviceusage, which the Admin SDK key may not do.
+          node tools/deploy-rules.mjs klas-pult
+          $FB deploy --only hosting:platform --message "platform ${GITHUB_SHA::7}"
           rm -f "$RUNNER_TEMP/sa.json"
           echo "::notice::Опубліковано: https://$SITE.web.app"

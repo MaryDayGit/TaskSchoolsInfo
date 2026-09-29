@@ -9,3 +9,6 @@ coverage/
 .vscode/*
 !.vscode/extensions.json
 .cache/
+
+# Firebase CLI deploy cache
+.firebase/
