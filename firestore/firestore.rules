@@ -229,5 +229,106 @@ service cloud.firestore {
       allow list: if isTeacher();
       allow delete: if signedIn() && (request.auth.uid == uid || isTeacher());
     }
+
+    // =====================================================================
+    // Этап 3: банк тестов, задания, ключи, сдачи.
+    // =====================================================================
+
+    function myStudentId() {
+      return get(bindingPath(request.auth.uid)).data.studentId;
+    }
+
+    function assignmentPath(aId) {
+      return /databases/$(database)/documents/assignments/$(aId);
+    }
+
+    function validQuestions(list) {
+      return list is list && list.size() >= 1 && list.size() <= 50;
+    }
+
+    // Банк тестов: только учитель. Ответы лежат прямо в тесте, потому что ученик
+    // банк не читает никогда: он получает снимок без ответов в задании.
+    match /quizzes/{quizId} {
+      allow read, delete: if isTeacher();
+      allow create, update: if isTeacher()
+        && request.resource.data.keys().hasOnly(['title', 'folder', 'questions', 'createdAt', 'updatedAt'])
+        && validText(request.resource.data.title, 200)
+        && request.resource.data.folder is string && request.resource.data.folder.size() <= 60
+        && validQuestions(request.resource.data.questions);
+    }
+
+    function validAssignment(data) {
+      return data.keys().hasOnly(['classId', 'kind', 'quizId', 'title', 'questions', 'dueAt',
+                                  'maxAttempts', 'reveal', 'revealNow', 'roomId', 'createdAt', 'summary'])
+        && data.classId is string
+        && data.kind in ['homework', 'lesson']
+        && data.quizId is string
+        && validText(data.title, 200)
+        && validQuestions(data.questions)
+        && (data.dueAt == null || data.dueAt is timestamp)
+        && (data.maxAttempts == null
+            || (data.maxAttempts is int && data.maxAttempts >= 1 && data.maxAttempts <= 20))
+        && data.reveal in ['immediate', 'after_due', 'never']
+        && data.revealNow is bool;
+    }
+
+    // Задание: снимок вопросов БЕЗ ответов. Читают учитель и ученики класса.
+    match /assignments/{aId} {
+      allow get, list: if isTeacher() || isStudentOf(resource.data.classId);
+      allow create: if isTeacher()
+        && validAssignment(request.resource.data)
+        && exists(/databases/$(database)/documents/classes/$(request.resource.data.classId));
+      allow update: if isTeacher()
+        && validAssignment(request.resource.data)
+        && request.resource.data.classId == resource.data.classId;
+      allow delete: if isTeacher();
+    }
+
+    // Ключ задания (снимок С ответами). Ученик читает его только для разбора:
+    // после сдачи при «розбір одразу», после «Показати учням результати» на уроке
+    // или когда закончился срок при «після терміну».
+    match /assignmentKeys/{aId} {
+      function a() { return get(assignmentPath(aId)).data; }
+      function submitted() {
+        return exists(/databases/$(database)/documents/submissions/$(aId + '_' + myStudentId() + '_1'));
+      }
+      allow read: if isTeacher()
+        || (isStudentOf(a().classId) && (
+             (a().reveal == 'immediate' && submitted())
+          || (a().revealNow == true && submitted())
+          || (a().reveal == 'after_due' && a().dueAt != null && request.time > a().dueAt)));
+      allow create, update: if isTeacher()
+        && request.resource.data.keys().hasOnly(['questions'])
+        && validQuestions(request.resource.data.questions);
+      allow delete: if isTeacher();
+    }
+
+    // Сдача: «сырые» ответы ученика. Балл считает кабинет учителя по ключу.
+    // id = {задание}_{ученик}_{попытка}: вторая сдача той же попытки была бы
+    // изменением, а изменять нельзя; номер попытки идёт строго по порядку.
+    match /submissions/{subId} {
+      function sub() { return request.resource.data; }
+      function a() { return get(assignmentPath(sub().assignmentId)).data; }
+      function prevId() {
+        return sub().assignmentId + '_' + sub().studentId + '_' + string(sub().attempt - 1);
+      }
+      allow create: if isStudentOf(sub().classId)
+        && sub().keys().hasOnly(['assignmentId', 'classId', 'studentId', 'attempt', 'answers', 'submittedAt', 'pcId'])
+        && sub().assignmentId is string
+        && sub().studentId == myStudentId()
+        && sub().attempt is int && sub().attempt >= 1
+        && subId == sub().assignmentId + '_' + sub().studentId + '_' + string(sub().attempt)
+        && a().classId == sub().classId
+        && (sub().attempt == 1
+            || exists(/databases/$(database)/documents/submissions/$(prevId())))
+        && (a().maxAttempts == null || sub().attempt <= a().maxAttempts)
+        && (a().dueAt == null || request.time <= a().dueAt)
+        && sub().submittedAt == request.time
+        && sub().answers is map && sub().answers.size() <= 50
+        && (!('pcId' in sub()) || (sub().pcId is string && sub().pcId.size() <= 10));
+      allow get, list: if isTeacher()
+        || (isStudentOf(resource.data.classId) && resource.data.studentId == myStudentId());
+      allow delete: if isTeacher();
+    }
   }
 }
