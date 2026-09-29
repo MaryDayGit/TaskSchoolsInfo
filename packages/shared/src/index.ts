@@ -7,3 +7,4 @@ export * from './importer.js';
 export * from './results.js';
 export * from './csv.js';
 export * from './lesson.js';
+export * from './game.js';

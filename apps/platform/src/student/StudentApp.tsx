@@ -26,6 +26,7 @@ import {
 } from '../data/classes';
 import { describeDevice } from '../lib/device';
 import { isJuniorGrade, normalizeSecret } from '../lib/secrets';
+import { GameBanner } from './GameBanner';
 import { HomeworkList } from './HomeworkList';
 import { LessonScreen } from './LessonScreen';
 import { pcNum as parsePcNum } from '@infoklas/shared/lesson';
@@ -40,6 +41,7 @@ import { Picture } from '../components/Picture';
 
 // Taking a test is a separate part: the waiting screen on weak PCs stays light.
 const Homework = lazy(() => import('./Homework'));
+const GamePlay = lazy(() => import('./GamePlay'));
 
 const LOGGED_OUT =
   'Вчитель видав тобі новий пароль або вийшов з твоїх пристроїв. Увійди ще раз з карткою.';
@@ -219,6 +221,8 @@ function BoundLesson({
 }) {
   const confirm = useConfirm();
   const me = useDoc<RosterDoc>(rosterRef(b.classId, b.studentId));
+  const [params, setParams] = useSearchParams();
+  const playing = params.get('g');
   // A new password makes the binding invalid: the roster row stays readable, but
   // the class is not — the same check as on the home screen.
   useEffect(() => {
@@ -234,9 +238,21 @@ function BoundLesson({
   }, [uid, b.classId, onStale]);
 
   if (me.loading) return <Spinner />;
+  if (playing) {
+    return (
+      <Suspense fallback={<Spinner />}>
+        <GamePlay
+          gameId={playing}
+          studentId={b.studentId}
+          onBack={() => setParams({}, { replace: true })}
+        />
+      </Suspense>
+    );
+  }
   return (
     <div data-testid="student-home">
       <LessonScreen
+        top={<GameBanner classId={b.classId} onOpen={(id) => setParams({ g: id })} />}
         uid={uid}
         room={room}
         roomFromCache={roomFromCache}
@@ -301,6 +317,7 @@ function BoundHome({ uid, b, onStale }: { uid: string; b: BindingDoc; onStale: (
   const [cls, setCls] = useState<ClassDoc | null>(null);
   const [params, setParams] = useSearchParams();
   const open = params.get('a');
+  const playing = params.get('g');
 
   // A new password from the teacher makes this device's binding invalid: the
   // rules then refuse to show the class. Forget the binding and log in again.
@@ -332,6 +349,18 @@ function BoundHome({ uid, b, onStale }: { uid: string; b: BindingDoc; onStale: (
     await deleteDoc(bindingRef(uid));
   };
 
+  if (playing) {
+    return (
+      <Suspense fallback={<Spinner />}>
+        <GamePlay
+          gameId={playing}
+          studentId={b.studentId}
+          onBack={() => setParams({}, { replace: true })}
+        />
+      </Suspense>
+    );
+  }
+
   if (open) {
     return (
       <Suspense fallback={<Spinner />}>
@@ -352,6 +381,7 @@ function BoundHome({ uid, b, onStale }: { uid: string; b: BindingDoc; onStale: (
         <h1>Привіт, {me.data?.displayName ?? '…'}!</h1>
         {cls && <p className="badge">Клас {cls.name}</p>}
       </div>
+      <GameBanner classId={b.classId} onOpen={(id) => setParams({ g: id })} />
       <HomeworkList
         classId={b.classId}
         studentId={b.studentId}

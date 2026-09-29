@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useRef, useState, type ReactNode } from 'react';
 import { serverTimestamp } from 'firebase/firestore';
 import {
   HEARTBEAT_MS,
@@ -71,6 +71,7 @@ export function LessonScreen({
   pc,
   who,
   onNotMe,
+  top,
 }: {
   uid: string;
   room: RoomDoc;
@@ -78,6 +79,8 @@ export function LessonScreen({
   pc: number;
   who: Who;
   onNotMe: () => void;
+  /** Above the task (a live game of the pupil's class). */
+  top?: ReactNode;
 }) {
   const id = toPcId(pc);
   const task = visibleTask(room.task, id);
@@ -229,6 +232,7 @@ export function LessonScreen({
             </button>
           </div>
         </header>
+        {top}
         <div className="task-area" aria-live="polite">
           {!task ? (
             <p className="waiting">

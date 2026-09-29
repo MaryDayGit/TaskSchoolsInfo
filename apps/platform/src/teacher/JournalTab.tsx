@@ -4,6 +4,7 @@ import { Link } from 'react-router';
 import { buildJournal, journalToCsv, percent, type Journal } from '@infoklas/shared';
 import { errorText } from '../firebase/errors';
 import type { ClassDoc } from '../data/classes';
+import { classGamesQuery, gameResultsCol, type GameDoc } from '../data/games';
 import {
   classAssignmentsQuery,
   keyRef,
@@ -44,9 +45,11 @@ export function JournalTab({
     setBusy(true);
     setError(null);
     try {
-      const [assignments, subs] = await Promise.all([
+      const [assignments, subs, games, gameRows] = await Promise.all([
         getDocs(classAssignmentsQuery(classId)),
         getDocs(query(submissionsCol(), where('classId', '==', classId))),
+        getDocs(classGamesQuery(classId)),
+        getDocs(query(gameResultsCol(), where('classId', '==', classId))),
       ]);
       const keys = await Promise.all(assignments.docs.map((d) => getDoc(keyRef(d.id))));
       const j = buildJournal({
@@ -61,6 +64,26 @@ export function JournalTab({
             questions: (keys[i]!.data() as KeyDoc | undefined)?.questions ?? [],
           };
         }),
+        // Live games that got past the lobby; scores were computed by the host.
+        games: games.docs
+          .map((d) => ({ id: d.id, data: d.data() as GameDoc }))
+          .filter((x) => x.data.status === 'finished' && x.data.index >= 0)
+          .map((x) => ({
+            id: x.id,
+            title: x.data.title,
+            date: x.data.createdAt?.toMillis() ?? Date.now(),
+            results: gameRows.docs
+              .map(
+                (r) =>
+                  r.data() as {
+                    gameId: string;
+                    studentId: string;
+                    correctCount: number;
+                    total: number;
+                  },
+              )
+              .filter((r) => r.gameId === x.id),
+          })),
         submissions: subs.docs.map((d) => {
           const s = d.data() as SubmissionDoc;
           return { ...s, submittedAt: s.submittedAt?.toMillis() ?? null };
@@ -121,7 +144,13 @@ export function JournalTab({
                 <th className="sticky-col">Учень</th>
                 {journal.columns.map((col) => (
                   <th key={col.id} className="journal-col">
-                    <Link to={`/t/assignments/${col.id}`}>{col.title}</Link>
+                    {col.kind === 'live' ? (
+                      <span>
+                        {col.title} <span className="muted small">(гра)</span>
+                      </span>
+                    ) : (
+                      <Link to={`/t/assignments/${col.id}`}>{col.title}</Link>
+                    )}
                     <div className="small muted">{formatShortDate(new Date(col.date))}</div>
                   </th>
                 ))}

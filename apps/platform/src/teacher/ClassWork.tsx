@@ -7,6 +7,7 @@ import { Icon } from '../components/Icon';
 import { ErrorText, Spinner } from '../components/Modal';
 import { questionsLabel } from '../lib/text';
 import { AssignModal } from './AssignModal';
+import { GameModal } from './GameModal';
 import { attemptsText, dueText } from './AssignmentPage';
 import { ShareBox } from './ShareBox';
 
@@ -22,6 +23,7 @@ export function ClassWork({
 }) {
   const list = useQuery<AssignmentDoc>(classAssignmentsQuery(classId), `work:${classId}`);
   const [assign, setAssign] = useState(false);
+  const [play, setPlay] = useState(false);
   const sorted = [...list.docs].sort(
     (a, b) =>
       (b.data.createdAt?.toMillis() ?? Infinity) - (a.data.createdAt?.toMillis() ?? Infinity),
@@ -32,6 +34,9 @@ export function ClassWork({
       <div className="row">
         <button className="btn" onClick={() => setAssign(true)}>
           <Icon name="plus" /> Дати завдання
+        </button>
+        <button className="btn btn-secondary" onClick={() => setPlay(true)}>
+          Жива гра
         </button>
         <Link to="/t/quizzes" className="btn btn-secondary">
           Банк тестів
@@ -71,6 +76,7 @@ export function ClassWork({
         ))
       )}
       {assign && <AssignModal classId={classId} onClose={() => setAssign(false)} />}
+      {play && <GameModal classId={classId} onClose={() => setPlay(false)} />}
     </section>
   );
 }

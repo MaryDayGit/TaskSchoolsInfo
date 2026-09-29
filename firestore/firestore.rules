@@ -383,5 +383,74 @@ service cloud.firestore {
         && request.resource.data.submittedAt == request.time;
       allow read, delete: if isTeacher();
     }
+
+    // =====================================================================
+    // Этап 5: живая игра. Ведущий — браузер учителя; ученики только
+    // присоединяются и отвечают, баллы считает ведущий по их ответам.
+    // =====================================================================
+
+    function gamePath(gameId) {
+      return /databases/$(database)/documents/games/$(gameId);
+    }
+
+    match /games/{gameId} {
+      allow get, list: if isTeacher() || isStudentOf(resource.data.classId);
+      allow create, update: if isTeacher()
+        && request.resource.data.keys().hasOnly(['classId', 'className', 'quizId', 'title', 'questions', 'status',
+                                                 'index', 'deadline', 'starts', 'junior', 'stats', 'reveal',
+                                                 'players', 'leaderboard', 'createdAt', 'finishedAt', 'active'])
+        && request.resource.data.classId is string
+        && request.resource.data.status in ['lobby', 'question', 'reveal', 'finished']
+        && request.resource.data.index is int
+        && validQuestions(request.resource.data.questions);
+      allow delete: if isTeacher();
+
+      // «Я в грі»: ученик класса отмечает себя (имя ведущий берёт из списка класса).
+      match /players/{studentId} {
+        allow create: if isStudentOf(get(gamePath(gameId)).data.classId)
+          && studentId == myStudentId()
+          && request.resource.data.keys().hasOnly(['joinedAt'])
+          && request.resource.data.joinedAt == request.time
+          && get(gamePath(gameId)).data.status != 'finished';
+        allow get: if isTeacher() || (signedIn() && studentId == myStudentId());
+        allow list, delete: if isTeacher();
+      }
+
+      // Ответ: один раз (второе создание — изменение, а оно запрещено), только на
+      // текущий вопрос и не позже дедлайна + 1,5 с (время сервера).
+      match /answers/{answerId} {
+        function g() { return get(gamePath(gameId)).data; }
+        function a() { return request.resource.data; }
+        allow create: if isStudentOf(g().classId)
+          && a().keys().hasOnly(['studentId', 'index', 'value', 'at'])
+          && a().studentId == myStudentId()
+          && a().index is int
+          && answerId == a().studentId + '_' + string(a().index)
+          && g().status == 'question'
+          && a().index == g().index
+          && a().at == request.time
+          && request.time <= g().deadline + duration.value(1500, 'ms')
+          && ((a().value is string && a().value.size() <= 500)
+              || (a().value is list && a().value.size() <= 8));
+        allow get: if isTeacher() || (signedIn() && resource.data.studentId == myStudentId());
+        allow list, delete: if isTeacher();
+      }
+    }
+
+    // Вопросы игры с ответами — только ведущему.
+    match /gameKeys/{gameId} {
+      allow read, write: if isTeacher();
+    }
+
+    // Итоги игры для журнала: пишет ведущий в конце, ученик видит свои.
+    match /gameResults/{resultId} {
+      allow get, list: if isTeacher()
+        || (isStudentOf(resource.data.classId) && resource.data.studentId == myStudentId());
+      allow create, update: if isTeacher()
+        && request.resource.data.keys().hasOnly(['gameId', 'classId', 'studentId', 'score', 'correctCount',
+                                                 'total', 'answers', 'finishedAt'])
+        && resultId == request.resource.data.gameId + '_' + request.resource.data.studentId;
+      allow delete: if isTeacher();
+    }
   }
 }
