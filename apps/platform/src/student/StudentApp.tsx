@@ -1,6 +1,14 @@
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
 import { deleteDoc, getDoc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore';
-import { useParams } from 'react-router';
+import { useParams, useSearchParams } from 'react-router';
 import { PICTURES, type PictureId } from '@infoklas/shared/pictures';
 import { useUser } from '../firebase/auth';
 import { errorText, isPermissionDenied } from '../firebase/errors';
@@ -17,13 +25,18 @@ import {
   type RosterDoc,
 } from '../data/classes';
 import { describeDevice } from '../lib/device';
-import { normalizeSecret } from '../lib/secrets';
+import { isJuniorGrade, normalizeSecret } from '../lib/secrets';
+import { HomeworkList } from './HomeworkList';
+
 import { store } from '../lib/storage';
 import { clean } from '../lib/text';
 import { Brand } from '../components/Brand';
 import { useConfirm } from '../components/Dialog';
 import { ErrorText, Spinner } from '../components/Modal';
 import { Picture } from '../components/Picture';
+
+// Taking a test is a separate part: the waiting screen on weak PCs stays light.
+const Homework = lazy(() => import('./Homework'));
 
 const LOGGED_OUT =
   'Вчитель видав тобі новий пароль або вийшов з твоїх пристроїв. Увійди ще раз з карткою.';
@@ -106,7 +119,9 @@ export function StudentApp() {
 function BoundHome({ uid, b, onStale }: { uid: string; b: BindingDoc; onStale: () => void }) {
   const confirm = useConfirm();
   const me = useDoc<RosterDoc>(rosterRef(b.classId, b.studentId));
-  const [className, setClassName] = useState<string | null>(null);
+  const [cls, setCls] = useState<ClassDoc | null>(null);
+  const [params, setParams] = useSearchParams();
+  const open = params.get('a');
 
   // A new password from the teacher makes this device's binding invalid: the
   // rules then refuse to show the class. Forget the binding and log in again.
@@ -114,7 +129,7 @@ function BoundHome({ uid, b, onStale }: { uid: string; b: BindingDoc; onStale: (
     let cancelled = false;
     getDoc(classRef(b.classId)).then(
       (snap) => {
-        if (!cancelled) setClassName((snap.data() as ClassDoc | undefined)?.name ?? null);
+        if (!cancelled) setCls((snap.data() as ClassDoc | undefined) ?? null);
       },
       (err) => {
         if (cancelled || !isPermissionDenied(err)) return;
@@ -138,16 +153,36 @@ function BoundHome({ uid, b, onStale }: { uid: string; b: BindingDoc; onStale: (
     await deleteDoc(bindingRef(uid));
   };
 
+  if (open) {
+    return (
+      <Suspense fallback={<Spinner />}>
+        <Homework
+          assignmentId={open}
+          classId={b.classId}
+          studentId={b.studentId}
+          junior={cls ? isJuniorGrade(cls.grade) : false}
+          onBack={() => setParams({}, { replace: true })}
+        />
+      </Suspense>
+    );
+  }
+
   return (
-    <div className="stack center" data-testid="student-home">
-      <h1>Привіт, {me.data?.displayName ?? '…'}!</h1>
-      {className && <p className="badge">Клас {className}</p>}
-      <p className="waiting">
-        <span className="pulse-dot" aria-hidden="true" /> Чекаємо на завдання
-      </p>
-      <button className="btn btn-ghost btn-sm" onClick={() => void leave()}>
-        Це не я / Вийти
-      </button>
+    <div className="stack" data-testid="student-home">
+      <div className="stack center">
+        <h1>Привіт, {me.data?.displayName ?? '…'}!</h1>
+        {cls && <p className="badge">Клас {cls.name}</p>}
+      </div>
+      <HomeworkList
+        classId={b.classId}
+        studentId={b.studentId}
+        onOpen={(id) => setParams({ a: id })}
+      />
+      <div className="center">
+        <button className="btn btn-ghost btn-sm" onClick={() => void leave()}>
+          Це не я / Вийти
+        </button>
+      </div>
     </div>
   );
 }

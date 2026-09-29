@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { collection, query, where } from 'firebase/firestore';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { db } from '../firebase/app';
 import { errorText } from '../firebase/errors';
 import { useDoc, useQuery } from '../firebase/watch';
@@ -27,14 +27,28 @@ import { clean, countLabel, formatDateTime } from '../lib/text';
 import { useConfirm } from '../components/Dialog';
 import { ErrorText, Modal, Spinner } from '../components/Modal';
 import { SecretView } from '../components/SecretView';
+import { deleteClassWork } from '../data/assignments';
 import { ClassForm } from './ClassesPage';
+import { ClassWork } from './ClassWork';
+import { JournalTab } from './JournalTab';
 
-type Student = { id: string; data: RosterDoc };
+const TABS = [
+  ['students', 'Учні'],
+  ['work', 'Завдання'],
+  ['journal', 'Журнал'],
+] as const;
+type Tab = (typeof TABS)[number][0];
+
+export type Student = { id: string; data: RosterDoc };
 
 export function ClassPage() {
   const { id = '' } = useParams();
   const cls = useDoc<ClassDoc>(classRef(id));
   const roster = useQuery<RosterDoc>(rosterCol(id), `roster:${id}`);
+  const [params, setParams] = useSearchParams();
+  const tab: Tab = TABS.some(([t]) => t === params.get('tab'))
+    ? (params.get('tab') as Tab)
+    : 'students';
 
   if (cls.loading) return <Spinner />;
   if (!cls.exists || !cls.data) {
@@ -58,13 +72,32 @@ export function ClassPage() {
         ← Усі класи
       </Link>
       <ClassHeader id={id} c={c} />
-      <AddStudents id={id} grade={c.grade} students={students} />
-      <ErrorText error={roster.error} />
-      {roster.loading ? (
-        <Spinner />
-      ) : (
-        <StudentTable classId={id} grade={c.grade} students={students} />
+      <div className="tabs" role="tablist">
+        {TABS.map(([t, label]) => (
+          <button
+            key={t}
+            role="tab"
+            aria-selected={tab === t}
+            className={`tab${tab === t ? ' active' : ''}`}
+            onClick={() => setParams(t === 'students' ? {} : { tab: t }, { replace: true })}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {tab === 'students' && (
+        <>
+          <AddStudents id={id} grade={c.grade} students={students} />
+          <ErrorText error={roster.error} />
+          {roster.loading ? (
+            <Spinner />
+          ) : (
+            <StudentTable classId={id} grade={c.grade} students={students} />
+          )}
+        </>
       )}
+      {tab === 'work' && <ClassWork classId={id} c={c} studentCount={students.length} />}
+      {tab === 'journal' && <JournalTab classId={id} c={c} students={students} />}
     </main>
   );
 }
@@ -152,11 +185,12 @@ function SettingsModal({ id, c, onClose }: { id: string; c: ClassDoc; onClose: (
               if (
                 await confirm({
                   title: `Видалити клас ${c.name}?`,
-                  text: 'Разом з усіма учнями та їхніми паролями. Скасувати не можна.',
+                  text: 'Разом з усіма учнями, їхніми паролями, завданнями та результатами. Скасувати не можна.',
                   ok: 'Видалити',
                   danger: true,
                 })
               ) {
+                await deleteClassWork(id);
                 await deleteClass(id, c.joinCode);
                 navigate('/t');
               }

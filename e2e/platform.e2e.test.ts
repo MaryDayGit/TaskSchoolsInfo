@@ -3,6 +3,7 @@
  * Firebase. Запуск: npm run test:e2e (сам собирает приложение и поднимает эмуляторы).
  * Сценарии идут по порядку и используют общее состояние эмулятора.
  */
+import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 import { BASE_URL, computer, launch, open, resetEmulators, type TrackedPage } from './helpers';
@@ -269,6 +270,177 @@ describe('stage 2: classes, students, student login', () => {
     await page.getByRole('button', { name: 'Далі' }).click();
     await page.getByRole('alert').getByText('Клас з таким кодом не знайдено').waitFor();
     await pc.close();
+  });
+});
+
+describe('stage 3: bank, homework, results, journal', () => {
+  const IMPORT = [
+    '# Мережі',
+    'Папка: 6 клас',
+    "1. Що з'єднує комп'ютери у всьому світі?",
+    '* Інтернет',
+    '- Принтер',
+    '- Монітор',
+    '',
+    '2. Скільки біт в одному байті?',
+    '- 4',
+    '* 8',
+    '- 10',
+  ].join('\n');
+  let link = '';
+  let word = '';
+  let phone: BrowserContext;
+  let pupil: TrackedPage;
+
+  it('teacher imports a test from text; errors name the line', async () => {
+    await teacher.goto(`${BASE_URL}/t/quizzes`);
+    await teacher.getByRole('heading', { name: 'Банк тестів' }).waitFor();
+    await teacher.getByRole('button', { name: 'Імпорт' }).click();
+    const dialog = teacher.getByRole('dialog', { name: 'Імпорт тестів з тексту' });
+    await dialog.getByLabel('Текст тестів').fill('Питання без заголовка');
+    await dialog.getByRole('alert').getByText('Рядок 1').waitFor();
+    await dialog.getByLabel('Текст тестів').fill(IMPORT);
+    await dialog.getByTestId('import-preview').getByText('Мережі').waitFor();
+    await dialog.getByRole('button', { name: /^Імпортувати/ }).click();
+    const row = teacher.getByTestId('quiz-Мережі');
+    await row.getByText('2 питання · ще не давали').waitFor();
+    await teacher.getByRole('heading', { name: '6 клас · 1' }).waitFor();
+
+    // «Відповіді» shows the key without editing.
+    await row.getByRole('button', { name: 'Відповіді' }).click();
+    const key = teacher.getByRole('dialog', { name: 'Відповіді: Мережі' });
+    await key.locator('.answer-ok').getByText('Інтернет').waitFor();
+    await key.getByRole('button', { name: 'Закрити' }).click();
+    expect(teacher.errors).toEqual([]);
+  });
+
+  it('teacher adds a word-answer question in the editor', async () => {
+    await teacher.getByTestId('quiz-Мережі').getByRole('link', { name: 'Редагувати' }).click();
+    await teacher.getByLabel('Назва тесту').waitFor();
+    await teacher.getByRole('button', { name: 'Питання з відповіддю словом' }).click();
+    await teacher.getByRole('button', { name: 'Зберегти' }).click();
+    await teacher.getByRole('alert').getByText('Питання 3: Напишіть текст питання').waitFor();
+    const q3 = teacher.getByTestId('question-3');
+    await q3.getByLabel('Текст питання').fill('Столиця України?');
+    await q3.getByLabel('Правильна відповідь').fill('Київ');
+    await teacher.getByRole('button', { name: 'Зберегти' }).click();
+    await teacher.getByRole('status').getByText('Збережено').waitFor();
+    await teacher.getByRole('button', { name: '← Банк тестів' }).click();
+    await teacher.getByTestId('quiz-Мережі').getByText('3 питання').waitFor();
+  });
+
+  it('teacher gives it as homework and gets a link for Classroom', async () => {
+    await createClass('6-В', 6);
+    await addStudents(['Марія С.']);
+    await teacher.getByLabel('Показати паролі').check();
+    word = (await teacher
+      .getByTestId('student-Марія С.')
+      .locator('.secret-word')
+      .textContent())!.trim();
+
+    await teacher.getByRole('tab', { name: 'Завдання' }).click();
+    await teacher.getByRole('button', { name: 'Дати завдання' }).click();
+    const dialog = teacher.getByRole('dialog', { name: 'Дати завдання' });
+    await dialog.getByLabel('Тест').selectOption({ label: 'Мережі (3 питання)' });
+    await dialog.getByLabel('Кількість спроб').selectOption('2');
+    await dialog.getByRole('button', { name: 'Видати завдання' }).click();
+    const done = teacher.getByRole('dialog', { name: 'Завдання видано' });
+    const share = await done
+      .getByRole('link', { name: 'Поділитися в Classroom' })
+      .getAttribute('href');
+    link = new URL(share!).searchParams.get('url')!;
+    expect(link).toMatch(/\/join\/\d{6}\?a=/);
+    await done.getByRole('button', { name: 'Готово' }).click();
+    await teacher.getByTestId('work-Мережі').waitFor();
+    expect(teacher.errors).toEqual([]);
+  });
+
+  it('a pupil opens the link on a phone, keeps a draft, submits and sees the review', async () => {
+    phone = await computer(browser, { width: 375, height: 740 });
+    pupil = await open(phone, link.replace(/^https?:\/\/[^/]+/, ''));
+    await pupil.getByRole('button', { name: 'Марія С.' }).click({ timeout: 15_000 });
+    await pupil.getByLabel('Пароль').fill(word);
+    await pupil.getByRole('button', { name: 'Увійти' }).click();
+    // The link opens the assignment right after login.
+    await pupil.getByRole('heading', { name: 'Мережі' }).waitFor();
+    await pupil.getByRole('button', { name: 'Почати' }).click();
+    await pupil.getByRole('radio', { name: 'Інтернет' }).click();
+
+    // A reload keeps the draft.
+    await pupil.reload();
+    await pupil.getByRole('button', { name: 'Почати' }).click({ timeout: 15_000 });
+    expect(await pupil.getByRole('radio', { name: 'Інтернет' }).getAttribute('aria-checked')).toBe(
+      'true',
+    );
+    await pupil.getByRole('button', { name: 'Далі →' }).click();
+    await pupil.getByRole('radio', { name: '4', exact: true }).click();
+    await pupil.getByRole('button', { name: 'Далі →' }).click();
+    await pupil.getByLabel('Відповідь').fill('  київ ');
+    await pupil.getByRole('button', { name: 'Завершити' }).click();
+    await pupil.getByRole('heading', { name: 'Готово?' }).waitFor();
+    await pupil.getByRole('button', { name: 'Надіслати' }).click();
+
+    const result = pupil.getByTestId('hw-result');
+    expect(await result.getByTestId('hw-score').textContent({ timeout: 15_000 })).toBe('2');
+    await result.getByText('Правильна відповідь: 8').waitFor();
+    const overflow = await pupil.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+
+    await result.getByRole('button', { name: 'До завдань' }).click();
+    await pupil.getByTestId('hw-Мережі').getByText('Здано').waitFor();
+    expect(pupil.errors).toEqual([]);
+  });
+
+  it('teacher sees results, the journal and CSV files', async () => {
+    await teacher.getByTestId('work-Мережі').getByRole('link', { name: 'Результати' }).click();
+    await teacher.getByTestId('submitted-count').getByText('Здали: 1 з 1').waitFor();
+    const row = teacher.getByTestId('result-Марія С.');
+    await row.getByText('67%').waitFor();
+
+    const [csv] = await Promise.all([
+      teacher.waitForEvent('download'),
+      teacher.getByRole('button', { name: 'CSV' }).click(),
+    ]);
+    const text = readFileSync((await csv.path())!, 'utf8');
+    expect(text).toContain('Марія С.;67%;2;3;1;');
+
+    await teacher.getByRole('link', { name: 'Клас 6-В' }).click();
+    await teacher.getByRole('tab', { name: 'Журнал' }).click();
+    await teacher.getByTestId('journal-Марія С.').getByText('67%').waitFor();
+    const [journal] = await Promise.all([
+      teacher.waitForEvent('download'),
+      teacher.getByRole('button', { name: /Завантажити для Excel/ }).click(),
+    ]);
+    expect(journal.suggestedFilename()).toBe('Журнал 6-В.csv');
+    expect(readFileSync((await journal.path())!, 'utf8')).toBe('﻿Учень;Мережі\r\nМарія С.;67%\r\n');
+    expect(teacher.errors).toEqual([]);
+  });
+
+  it('the second attempt counts if better; then attempts are over', async () => {
+    await pupil.getByTestId('hw-Мережі').click();
+    await pupil.getByRole('button', { name: 'Спробувати ще раз' }).click();
+    await pupil.getByRole('radio', { name: 'Інтернет' }).click();
+    await pupil.getByRole('button', { name: 'Далі →' }).click();
+    await pupil.getByRole('radio', { name: '8', exact: true }).click();
+    await pupil.getByRole('button', { name: 'Далі →' }).click();
+    await pupil.getByLabel('Відповідь').fill('Київ');
+    await pupil.getByRole('button', { name: 'Завершити' }).click();
+    await pupil.getByRole('button', { name: 'Надіслати' }).click();
+    expect(await pupil.getByTestId('hw-score').textContent({ timeout: 15_000 })).toBe('3');
+    expect(await pupil.getByRole('button', { name: 'Спробувати ще раз' }).count()).toBe(0);
+    expect(pupil.errors).toEqual([]);
+    await phone.close();
+
+    await teacher.getByRole('button', { name: 'Оновити' }).click();
+    await teacher.getByTestId('journal-Марія С.').getByText('100%').waitFor();
+    await teacher.goto(`${BASE_URL}/t/quizzes`);
+    await teacher
+      .getByTestId('quiz-Мережі')
+      .getByText(/давали: 6-В \d\d\.\d\d/)
+      .waitFor();
+    expect(teacher.errors).toEqual([]);
   });
 });
 
