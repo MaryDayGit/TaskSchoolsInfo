@@ -281,6 +281,8 @@ function LoginFlow({
   if (step === 'name' || !student) {
     return (
       <div className="stack">
+        {/* A /join link skips the code step, so the notice is shown here too. */}
+        {notice && <p className="alert alert-info">{notice}</p>}
         <h1 className="center">Хто ти?</h1>
         {roster.length === 0 ? (
           <p className="muted center">У класі ще немає учнів. Попроси вчителя додати тебе.</p>

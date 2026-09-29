@@ -208,7 +208,9 @@ describe('stage 2: classes, students, student login', () => {
     await row.getByRole('button', { name: 'Вийти з усіх пристроїв' }).click();
     await teacher.getByRole('alertdialog').getByRole('button', { name: 'Вийти' }).click();
     await row.getByText('ще не входив(ла)').waitFor();
-    await page.getByText('вийшов з твоїх пристроїв').waitFor({ timeout: 15_000 });
+    // Opened by a /join link: the notice stays on the name step, not only on the code step.
+    await page.getByRole('button', { name: 'Петро М.' }).waitFor({ timeout: 15_000 });
+    await page.getByText('вийшов з твоїх пристроїв').waitFor();
     expect(page.errors).toEqual([]);
     await phone.close();
   });
@@ -236,10 +238,11 @@ describe('stage 2: classes, students, student login', () => {
     // «Це не я / Вийти» asks in the page and logs out.
     await page.getByRole('button', { name: 'Це не я / Вийти' }).click();
     await page.getByRole('alertdialog').getByRole('button', { name: 'Вийти' }).click();
-    await page.getByRole('heading', { name: 'Введи код класу' }).waitFor();
+    // The page was opened by a /join link, so it goes straight to the names.
+    await page.getByRole('button', { name: 'Іван Т.' }).waitFor();
     // Leaving on purpose is not "the teacher logged you out".
     await page.reload();
-    await page.getByRole('heading', { name: 'Введи код класу' }).waitFor({ timeout: 15_000 });
+    await page.getByRole('button', { name: 'Іван Т.' }).waitFor({ timeout: 15_000 });
     expect(await page.getByText('Вчитель видав тобі новий пароль').count()).toBe(0);
     expect(page.errors).toEqual([]);
     await phone.close();
