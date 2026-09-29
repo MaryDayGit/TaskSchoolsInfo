@@ -13,7 +13,13 @@ export function chromiumPath(): string {
 }
 
 export async function launch(): Promise<Browser> {
-  return chromium.launch({ executablePath: chromiumPath(), args: ['--no-sandbox'] });
+  return chromium.launch({
+    executablePath: chromiumPath(),
+    args: ['--no-sandbox'],
+    // With the POSIX locale of CI containers Chrome can't save non-ASCII file names
+    // and calls a download «download»; Windows school PCs keep «Журнал 6-В.csv».
+    env: { ...process.env, LANG: 'C.UTF-8', LC_ALL: 'C.UTF-8' },
+  });
 }
 
 /** Wipes emulator data between scenarios (REST endpoints of the emulators). */

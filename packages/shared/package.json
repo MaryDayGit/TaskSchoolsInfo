@@ -4,7 +4,14 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./pictures": "./src/pictures.ts",
+    "./grading": "./src/grading.ts",
+    "./quiz": "./src/quiz.ts",
+    "./importer": "./src/importer.ts",
+    "./results": "./src/results.ts",
+    "./csv": "./src/csv.ts",
+    "./lesson": "./src/lesson.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"

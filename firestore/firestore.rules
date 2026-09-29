@@ -126,5 +126,262 @@ service cloud.firestore {
         && shortString(request.resource.data.name);
       allow read, delete: if isTeacher();
     }
+
+    // =====================================================================
+    // Единая платформа. Всё, что выше, — правила Клас-пульта без изменений.
+    // Этап 2: классы, списки учеников, вход учеников (docs/platform/DATA_MODEL.md).
+    // =====================================================================
+
+    function validText(value, max) {
+      return value is string && value.size() >= 1 && value.size() <= max;
+    }
+
+    function bindingPath(uid) {
+      return /databases/$(database)/documents/bindings/$(uid);
+    }
+
+    function secretPath(studentId) {
+      return /databases/$(database)/documents/studentSecrets/$(studentId);
+    }
+
+    // Ученик класса: у браузера есть привязка к этому классу, и она совпадает с
+    // текущим паролем ученика. «Новий пароль» у учителя сразу отключает все
+    // устройства, где ученик входил со старым паролем.
+    function isStudentOf(classId) {
+      return signedIn()
+        && exists(bindingPath(request.auth.uid))
+        && get(bindingPath(request.auth.uid)).data.classId == classId
+        && get(bindingPath(request.auth.uid)).data.secret
+           == get(secretPath(get(bindingPath(request.auth.uid)).data.studentId)).data.secret;
+    }
+
+    function validClass(data) {
+      return data.keys().hasOnly(['name', 'grade', 'joinCode', 'createdAt', 'archived'])
+        && validText(data.name, 40)
+        && data.grade is int && data.grade >= 2 && data.grade <= 9
+        && data.joinCode is string && data.joinCode.matches('[0-9]{6}')
+        && data.archived is bool;
+    }
+
+    // Класс. Код входа принадлежит классу: joinCodes/{код}.classId == classId
+    // проверяется после всего пакета (getAfter), поэтому код меняется атомарно.
+    match /classes/{classId} {
+      allow get: if isTeacher() || isStudentOf(classId);
+      allow list: if isTeacher();
+      allow create: if isTeacher()
+        && validClass(request.resource.data)
+        && getAfter(/databases/$(database)/documents/joinCodes/$(request.resource.data.joinCode)).data.classId
+           == classId;
+      allow update: if isTeacher()
+        && validClass(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && (request.resource.data.joinCode == resource.data.joinCode
+            || getAfter(/databases/$(database)/documents/joinCodes/$(request.resource.data.joinCode)).data.classId
+               == classId);
+      allow delete: if isTeacher();
+
+      // Список имён: его видит любой вошедший, чтобы выбрать себя после кода класса.
+      match /roster/{studentId} {
+        allow read: if signedIn();
+        allow create, update: if isTeacher()
+          && request.resource.data.keys().hasOnly(['displayName', 'secretKind', 'pictureCount', 'createdAt'])
+          && validText(request.resource.data.displayName, 60)
+          && (request.resource.data.secretKind == 'password'
+              || (request.resource.data.secretKind == 'pictures'
+                  && request.resource.data.pictureCount in [3, 4]));
+        allow delete: if isTeacher();
+      }
+    }
+
+    // Код класса → класс. Только get по известному коду; перебрать список нельзя.
+    // Нового кода не бывает у двух классов: запись в существующий документ —
+    // это update, а он запрещён.
+    match /joinCodes/{code} {
+      allow get: if signedIn();
+      allow create: if isTeacher()
+        && code.matches('[0-9]{6}')
+        && request.resource.data.keys().hasOnly(['classId'])
+        && existsAfter(/databases/$(database)/documents/classes/$(request.resource.data.classId));
+      allow delete: if isTeacher();
+    }
+
+    // Пароль ученика (картинки или слово). Читает только учитель — для карточек.
+    match /studentSecrets/{studentId} {
+      allow read, delete: if isTeacher();
+      allow create, update: if isTeacher()
+        && request.resource.data.keys().hasOnly(['classId', 'secret'])
+        && validText(request.resource.data.secret, 100)
+        && existsAfter(/databases/$(database)/documents/classes/$(request.resource.data.classId)/roster/$(studentId));
+    }
+
+    // Привязка браузера к ученику: создать можно только себе и только с верным
+    // паролем. Изменить нельзя: чтобы войти другим учеником, привязку удаляют.
+    match /bindings/{uid} {
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['classId', 'studentId', 'secret', 'createdAt', 'device'])
+        && request.resource.data.studentId is string
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.device is string && request.resource.data.device.size() <= 60
+        && get(secretPath(request.resource.data.studentId)).data.secret == request.resource.data.secret
+        && get(secretPath(request.resource.data.studentId)).data.classId == request.resource.data.classId;
+      allow get: if signedIn() && (request.auth.uid == uid || isTeacher());
+      allow list: if isTeacher();
+      allow delete: if signedIn() && (request.auth.uid == uid || isTeacher());
+    }
+
+    // =====================================================================
+    // Этап 3: банк тестов, задания, ключи, сдачи.
+    // =====================================================================
+
+    function myStudentId() {
+      return get(bindingPath(request.auth.uid)).data.studentId;
+    }
+
+    function assignmentPath(aId) {
+      return /databases/$(database)/documents/assignments/$(aId);
+    }
+
+    function validQuestions(list) {
+      return list is list && list.size() >= 1 && list.size() <= 50;
+    }
+
+    // Банк тестов: только учитель. Ответы лежат прямо в тесте, потому что ученик
+    // банк не читает никогда: он получает снимок без ответов в задании.
+    match /quizzes/{quizId} {
+      allow read, delete: if isTeacher();
+      allow create, update: if isTeacher()
+        && request.resource.data.keys().hasOnly(['title', 'folder', 'questions', 'createdAt', 'updatedAt'])
+        && validText(request.resource.data.title, 200)
+        && request.resource.data.folder is string && request.resource.data.folder.size() <= 60
+        && validQuestions(request.resource.data.questions);
+    }
+
+    function validAssignment(data) {
+      return data.keys().hasOnly(['classId', 'kind', 'quizId', 'title', 'questions', 'dueAt',
+                                  'maxAttempts', 'reveal', 'revealNow', 'roomId', 'createdAt', 'summary'])
+        && data.classId is string
+        && data.kind in ['homework', 'lesson']
+        && data.quizId is string
+        && validText(data.title, 200)
+        && validQuestions(data.questions)
+        && (data.dueAt == null || data.dueAt is timestamp)
+        && (data.maxAttempts == null
+            || (data.maxAttempts is int && data.maxAttempts >= 1 && data.maxAttempts <= 20))
+        && data.reveal in ['immediate', 'after_due', 'never']
+        && data.revealNow is bool
+        && (!('roomId' in data) || data.roomId == null || data.roomId is string);
+    }
+
+    // Задание: снимок вопросов БЕЗ ответов. Читают учитель и ученики класса.
+    match /assignments/{aId} {
+      allow get, list: if isTeacher() || isStudentOf(resource.data.classId);
+      // Тест на уроке видит и гость (номер ПК + имя), как тесты Клас-пульта:
+      // только сам документ по id, без ответов.
+      allow get: if signedIn() && resource.data.kind == 'lesson';
+      allow create: if isTeacher()
+        && validAssignment(request.resource.data)
+        && exists(/databases/$(database)/documents/classes/$(request.resource.data.classId));
+      allow update: if isTeacher()
+        && validAssignment(request.resource.data)
+        && request.resource.data.classId == resource.data.classId;
+      allow delete: if isTeacher();
+    }
+
+    // Ключ задания (снимок С ответами). Ученик читает его только для разбора:
+    // после сдачи при «розбір одразу», после «Показати учням результати» на уроке
+    // или когда закончился срок при «після терміну».
+    match /assignmentKeys/{aId} {
+      function a() { return get(assignmentPath(aId)).data; }
+      function submitted() {
+        return exists(/databases/$(database)/documents/submissions/$(aId + '_' + myStudentId() + '_1'));
+      }
+      allow read: if isTeacher()
+        || (isStudentOf(a().classId) && (
+             (a().reveal == 'immediate' && submitted())
+          || (a().revealNow == true && submitted())
+          || (a().reveal == 'after_due' && a().dueAt != null && request.time > a().dueAt)))
+        // «Показати учням результати» на уроке: и гостям, как reveals Клас-пульта.
+        || (signedIn() && a().kind == 'lesson' && a().revealNow == true);
+      allow create, update: if isTeacher()
+        && request.resource.data.keys().hasOnly(['questions'])
+        && validQuestions(request.resource.data.questions);
+      allow delete: if isTeacher();
+    }
+
+    // Сдача: «сырые» ответы ученика. Балл считает кабинет учителя по ключу.
+    // id = {задание}_{ученик}_{попытка}: вторая сдача той же попытки была бы
+    // изменением, а изменять нельзя; номер попытки идёт строго по порядку.
+    match /submissions/{subId} {
+      function sub() { return request.resource.data; }
+      function a() { return get(assignmentPath(sub().assignmentId)).data; }
+      function prevId() {
+        return sub().assignmentId + '_' + sub().studentId + '_' + string(sub().attempt - 1);
+      }
+      allow create: if isStudentOf(sub().classId)
+        && sub().keys().hasOnly(['assignmentId', 'classId', 'studentId', 'attempt', 'answers', 'submittedAt', 'pcId'])
+        && sub().assignmentId is string
+        && sub().studentId == myStudentId()
+        && sub().attempt is int && sub().attempt >= 1
+        && subId == sub().assignmentId + '_' + sub().studentId + '_' + string(sub().attempt)
+        && a().classId == sub().classId
+        && (sub().attempt == 1
+            || exists(/databases/$(database)/documents/submissions/$(prevId())))
+        && (a().maxAttempts == null || sub().attempt <= a().maxAttempts)
+        && (a().dueAt == null || request.time <= a().dueAt)
+        && sub().submittedAt == request.time
+        && sub().answers is map && sub().answers.size() <= 50
+        && (!('pcId' in sub()) || (sub().pcId is string && sub().pcId.size() <= 10));
+      allow get, list: if isTeacher()
+        || (isStudentOf(resource.data.classId) && resource.data.studentId == myStudentId());
+      allow delete: if isTeacher();
+    }
+
+    // =====================================================================
+    // Этап 4: пульт урока (Клас-пульт: control/state → rooms, students → pcs,
+    // results → submissions и guestResults).
+    // =====================================================================
+
+    function roomPath(roomId) {
+      return /databases/$(database)/documents/rooms/$(roomId);
+    }
+
+    // Состояние урока: задание на экранах, блокировка, таймер, руки, класс.
+    match /rooms/{roomId} {
+      allow read: if signedIn();
+      allow create, update: if isTeacher()
+        && request.resource.data.keys().hasOnly(['classId', 'className', 'task', 'lastTest', 'locked',
+                                                 'theme', 'timer', 'handsDown', 'resetAt'])
+        && (!('locked' in request.resource.data) || request.resource.data.locked is bool)
+        && (!('theme' in request.resource.data) || request.resource.data.theme in ['junior', 'senior']);
+      allow delete: if isTeacher();
+
+      // Карточка ПК: pc01..pc99. Ученик из списка класса урока пишет свой
+      // studentId (проверяется по привязке), гость — null.
+      match /pcs/{pcId} {
+        allow create, update: if signedIn()
+          && pcId.matches('pc[0-9]{2}')
+          && request.resource.data.keys().hasOnly(['pc', 'num', 'name', 'studentId', 'lastSeen', 'openedAt',
+                                                   'submittedAt', 'handAt', 'handId', 'doneAt'])
+          && shortString(request.resource.data.name)
+          && (!('studentId' in request.resource.data) || request.resource.data.studentId == null
+              || (request.resource.data.studentId == myStudentId()
+                  && isStudentOf(get(roomPath(roomId)).data.classId)));
+        allow read, delete: if isTeacher();
+      }
+    }
+
+    // Ответы гостя на тест урока (гость не в списке класса, поэтому не в журнале).
+    match /guestResults/{resultId} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['assignmentId', 'pcId', 'name', 'answers', 'submittedAt'])
+        && request.resource.data.assignmentId is string
+        && get(assignmentPath(request.resource.data.assignmentId)).data.kind == 'lesson'
+        && request.resource.data.pcId is string && request.resource.data.pcId.matches('pc[0-9]{2}')
+        && validText(request.resource.data.name, 60)
+        && request.resource.data.answers is map && request.resource.data.answers.size() <= 50
+        && request.resource.data.submittedAt == request.time;
+      allow read, delete: if isTeacher();
+    }
   }
 }

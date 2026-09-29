@@ -1,7 +1,7 @@
 import { Suspense, lazy } from 'react';
 import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router';
 import { DialogProvider } from './components/Dialog';
-import { StudentHome } from './student/StudentHome';
+import { StudentApp } from './student/StudentApp';
 
 const TeacherApp = lazy(() => import('./teacher'));
 const Loading = () => <div className="spinner" role="status" aria-label="Завантаження" />;
@@ -22,9 +22,11 @@ export function App() {
     <DialogProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<StudentHome />} />
+          <Route path="/" element={<StudentApp />} />
+          {/* Ссылка для Google Classroom и карточек: сразу открывает класс по коду. */}
+          <Route path="/join/:code" element={<StudentApp />} />
           <Route
-            path="/t"
+            path="/t/*"
             element={
               <Suspense fallback={<Loading />}>
                 <TeacherApp />

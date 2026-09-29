@@ -1,5 +1,14 @@
 {
   "projects": {
     "default": "demo-klas-pult"
+  },
+  "targets": {
+    "demo-klas-pult": {
+      "hosting": {
+        "platform": [
+          "demo-klas-pult"
+        ]
+      }
+    }
   }
 }

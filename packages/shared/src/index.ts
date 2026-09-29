@@ -3,3 +3,7 @@ export * from './grades.js';
 export * from './pictures.js';
 export * from './live.js';
 export * from './api.js';
+export * from './importer.js';
+export * from './results.js';
+export * from './csv.js';
+export * from './lesson.js';
