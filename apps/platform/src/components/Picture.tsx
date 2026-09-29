@@ -1,5 +1,7 @@
 import type { ReactElement } from 'react';
-import { getPicture, type PictureId } from '@infoklas/shared';
+// Subpath import: the package index also exports Zod schemas, which would bloat
+// the student page.
+import { getPicture, type PictureId } from '@infoklas/shared/pictures';
 
 /**
  * Картинки-пароли для 2–4 класів у SVG: на Windows 7 емодзі показуються
