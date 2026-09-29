@@ -126,5 +126,108 @@ service cloud.firestore {
         && shortString(request.resource.data.name);
       allow read, delete: if isTeacher();
     }
+
+    // =====================================================================
+    // Единая платформа. Всё, что выше, — правила Клас-пульта без изменений.
+    // Этап 2: классы, списки учеников, вход учеников (docs/platform/DATA_MODEL.md).
+    // =====================================================================
+
+    function validText(value, max) {
+      return value is string && value.size() >= 1 && value.size() <= max;
+    }
+
+    function bindingPath(uid) {
+      return /databases/$(database)/documents/bindings/$(uid);
+    }
+
+    function secretPath(studentId) {
+      return /databases/$(database)/documents/studentSecrets/$(studentId);
+    }
+
+    // Ученик класса: у браузера есть привязка к этому классу, и она совпадает с
+    // текущим паролем ученика. «Новий пароль» у учителя сразу отключает все
+    // устройства, где ученик входил со старым паролем.
+    function isStudentOf(classId) {
+      return signedIn()
+        && exists(bindingPath(request.auth.uid))
+        && get(bindingPath(request.auth.uid)).data.classId == classId
+        && get(bindingPath(request.auth.uid)).data.secret
+           == get(secretPath(get(bindingPath(request.auth.uid)).data.studentId)).data.secret;
+    }
+
+    function validClass(data) {
+      return data.keys().hasOnly(['name', 'grade', 'joinCode', 'createdAt', 'archived'])
+        && validText(data.name, 40)
+        && data.grade is int && data.grade >= 2 && data.grade <= 9
+        && data.joinCode is string && data.joinCode.matches('[0-9]{6}')
+        && data.archived is bool;
+    }
+
+    // Класс. Код входа принадлежит классу: joinCodes/{код}.classId == classId
+    // проверяется после всего пакета (getAfter), поэтому код меняется атомарно.
+    match /classes/{classId} {
+      allow get: if isTeacher() || isStudentOf(classId);
+      allow list: if isTeacher();
+      allow create: if isTeacher()
+        && validClass(request.resource.data)
+        && getAfter(/databases/$(database)/documents/joinCodes/$(request.resource.data.joinCode)).data.classId
+           == classId;
+      allow update: if isTeacher()
+        && validClass(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && (request.resource.data.joinCode == resource.data.joinCode
+            || getAfter(/databases/$(database)/documents/joinCodes/$(request.resource.data.joinCode)).data.classId
+               == classId);
+      allow delete: if isTeacher();
+
+      // Список имён: его видит любой вошедший, чтобы выбрать себя после кода класса.
+      match /roster/{studentId} {
+        allow read: if signedIn();
+        allow create, update: if isTeacher()
+          && request.resource.data.keys().hasOnly(['displayName', 'secretKind', 'pictureCount', 'createdAt'])
+          && validText(request.resource.data.displayName, 60)
+          && (request.resource.data.secretKind == 'password'
+              || (request.resource.data.secretKind == 'pictures'
+                  && request.resource.data.pictureCount in [3, 4]));
+        allow delete: if isTeacher();
+      }
+    }
+
+    // Код класса → класс. Только get по известному коду; перебрать список нельзя.
+    // Нового кода не бывает у двух классов: запись в существующий документ —
+    // это update, а он запрещён.
+    match /joinCodes/{code} {
+      allow get: if signedIn();
+      allow create: if isTeacher()
+        && code.matches('[0-9]{6}')
+        && request.resource.data.keys().hasOnly(['classId'])
+        && existsAfter(/databases/$(database)/documents/classes/$(request.resource.data.classId));
+      allow delete: if isTeacher();
+    }
+
+    // Пароль ученика (картинки или слово). Читает только учитель — для карточек.
+    match /studentSecrets/{studentId} {
+      allow read, delete: if isTeacher();
+      allow create, update: if isTeacher()
+        && request.resource.data.keys().hasOnly(['classId', 'secret'])
+        && validText(request.resource.data.secret, 100)
+        && existsAfter(/databases/$(database)/documents/classes/$(request.resource.data.classId)/roster/$(studentId));
+    }
+
+    // Привязка браузера к ученику: создать можно только себе и только с верным
+    // паролем. Изменить нельзя: чтобы войти другим учеником, привязку удаляют.
+    match /bindings/{uid} {
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['classId', 'studentId', 'secret', 'createdAt', 'device'])
+        && request.resource.data.studentId is string
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.device is string && request.resource.data.device.size() <= 60
+        && get(secretPath(request.resource.data.studentId)).data.secret == request.resource.data.secret
+        && get(secretPath(request.resource.data.studentId)).data.classId == request.resource.data.classId;
+      allow get: if signedIn() && (request.auth.uid == uid || isTeacher());
+      allow list: if isTeacher();
+      allow delete: if signedIn() && (request.auth.uid == uid || isTeacher());
+    }
   }
 }
