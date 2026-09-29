@@ -3,6 +3,7 @@ import { Brand } from '../components/Brand';
 import { CardsPage } from './CardsPage';
 import { ClassPage } from './ClassPage';
 import { AssignmentPage } from './AssignmentPage';
+import { GameHostPage } from './GameHost';
 import { ClassesPage } from './ClassesPage';
 import { QuizEditorPage } from './QuizEditorPage';
 import { QuizzesPage } from './QuizzesPage';
@@ -40,6 +41,7 @@ function TeacherLayout() {
         <Route path="quizzes/new" element={<QuizEditorPage />} />
         <Route path="quizzes/:id" element={<QuizEditorPage />} />
         <Route path="assignments/:id" element={<AssignmentPage />} />
+        <Route path="game/:id" element={<GameHostPage />} />
       </Routes>
     </>
   );

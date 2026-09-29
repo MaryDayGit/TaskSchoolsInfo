@@ -739,6 +739,160 @@ describe('stage 4: lesson console (Клас-пульт criteria)', () => {
   });
 });
 
+describe('stage 5: live game', () => {
+  const NAMES = ['Андрій Ж.', 'Богдана З.', 'Василь К.'];
+  const pupils: TrackedPage[] = [];
+  const ctxs: BrowserContext[] = [];
+  const latencies: number[] = [];
+
+  /** Waits on the projector for «n/3 відповіли» (polled every 20 ms). */
+  const hostAnswered = (n: number) =>
+    teacher.waitForFunction(
+      (text) => document.querySelector('[data-testid="answered"]')?.textContent === text,
+      `${n}/${NAMES.length}`,
+      { polling: 20, timeout: 15_000 },
+    );
+  /** A pupil taps an answer; the time until the projector counts it. */
+  const answerTimed = async (page: TrackedPage, option: string, n: number) => {
+    const t0 = Date.now();
+    await page.getByRole('radio', { name: option, exact: true }).click();
+    await hostAnswered(n);
+    latencies.push(Date.now() - t0);
+    await page.getByTestId('answer-accepted').waitFor();
+  };
+
+  it('teacher opens a game for a class; three pupils join from the banner', async () => {
+    const code = await createClass('8-А', 8);
+    await addStudents(NAMES);
+    await teacher.getByLabel('Показати паролі').check();
+    const words: string[] = [];
+    for (const n of NAMES) {
+      words.push(
+        (await teacher.getByTestId(`student-${n}`).locator('.secret-word').textContent())!.trim(),
+      );
+    }
+
+    await teacher.getByRole('tab', { name: 'Завдання' }).click();
+    await teacher.getByRole('button', { name: 'Жива гра' }).click();
+    const dialog = teacher.getByRole('dialog', { name: 'Жива гра' });
+    await dialog.getByLabel('Тест').selectOption({ label: 'Мережі (3 питання)' });
+    await dialog.getByRole('button', { name: 'Відкрити гру' }).click();
+    await teacher.getByTestId('game-host').waitFor();
+    expect(await teacher.getByTestId('joined-count').textContent()).toBe('0');
+    expect(await teacher.getByRole('button', { name: 'Почати гру' }).isDisabled()).toBe(true);
+
+    for (const [i, name] of NAMES.entries()) {
+      const ctx = await computer(browser, i === 0 ? { width: 375, height: 740 } : undefined);
+      ctxs.push(ctx);
+      const page = await open(ctx, `/join/${code}`);
+      await page.getByRole('button', { name }).click({ timeout: 15_000 });
+      await page.getByLabel('Пароль').fill(words[i]!);
+      await page.getByRole('button', { name: 'Увійти' }).click();
+      await page.getByTestId('game-banner').getByText('Жива гра: Мережі').waitFor();
+      await page.getByRole('button', { name: /Приєднатися до гри/ }).click();
+      await page.getByText('Чекаємо, коли вчитель почне гру').waitFor();
+      pupils.push(page);
+    }
+    await teacher.getByTestId('joined-count').getByText('3').waitFor();
+    for (const n of NAMES) await teacher.locator('.host-lobby .chip', { hasText: n }).waitFor();
+    expect(teacher.errors).toEqual([]);
+  });
+
+  it('question 1: answers reach the projector within 1.5 s; all answered → reveal', async () => {
+    const [a, b, c] = pupils as [TrackedPage, TrackedPage, TrackedPage];
+    await teacher.getByRole('button', { name: 'Почати гру' }).click();
+    await teacher.getByText('Питання 1 з 3').waitFor();
+    await teacher.getByTestId('host-timer').waitFor();
+    for (const p of pupils) await p.getByTestId('game-timer').waitFor();
+
+    await answerTimed(a, 'Інтернет', 1);
+    await answerTimed(b, 'Інтернет', 2);
+    await answerTimed(c, 'Принтер', 3);
+
+    // Everyone answered: the answer shows without waiting for the timer.
+    await teacher.getByTestId('leaderboard').waitFor();
+    await a
+      .getByTestId('game-reveal')
+      .getByText(/Правильно! \+\d+/)
+      .waitFor();
+    await c.getByTestId('game-reveal').getByText('Неправильно').waitFor();
+    await c.getByText('Правильна відповідь: Інтернет').waitFor();
+    // The faster pupil gets more points for the same right answer.
+    const score = async (p: TrackedPage) => Number(await p.getByTestId('my-score').textContent());
+    expect(await score(a)).toBeGreaterThan(await score(b));
+    expect(await score(b)).toBeGreaterThanOrEqual(500);
+    expect(await score(c)).toBe(0);
+    expect(await teacher.locator('.leader').first().textContent()).toContain('Андрій Ж.');
+  });
+
+  it('a reload of the projector continues from the same question', async () => {
+    const [a, b, c] = pupils as [TrackedPage, TrackedPage, TrackedPage];
+    await teacher.getByRole('button', { name: 'Наступне питання →' }).click();
+    await teacher.getByText('Питання 2 з 3').waitFor();
+    await a.getByRole('radio', { name: '8', exact: true }).click();
+    await hostAnswered(1);
+
+    await teacher.reload();
+    await teacher.getByText('Питання 2 з 3').waitFor({ timeout: 15_000 });
+    await teacher.getByText('Скільки біт в одному байті?').waitFor();
+    await hostAnswered(1);
+    const left = Number(await teacher.getByTestId('host-timer').textContent());
+    expect(left).toBeGreaterThan(0);
+    // A pupil's reload keeps «Відповідь прийнято».
+    await a.reload();
+    await a.getByTestId('answer-accepted').waitFor({ timeout: 15_000 });
+
+    await answerTimed(b, '4', 2);
+    await answerTimed(c, '8', 3);
+    await teacher.getByTestId('leaderboard').waitFor();
+    await b.getByTestId('game-reveal').getByText('Неправильно').waitFor();
+    expect(teacher.errors).toEqual([]);
+  });
+
+  it('a word question; the teacher reveals before the last pupil; the results', async () => {
+    const [a, b, c] = pupils as [TrackedPage, TrackedPage, TrackedPage];
+    await teacher.getByRole('button', { name: 'Наступне питання →' }).click();
+    await teacher.getByText('Питання 3 з 3').waitFor();
+    for (const [p, text] of [
+      [a, 'Київ'],
+      [b, ' київ '],
+    ] as const) {
+      await p.getByLabel('Відповідь').fill(text);
+      await p.getByRole('button', { name: 'Відповісти' }).click();
+      await p.getByTestId('answer-accepted').waitFor();
+    }
+    await hostAnswered(2);
+    await teacher.getByRole('button', { name: 'Показати відповідь' }).click();
+    await teacher.getByText('Правильна відповідь:').waitFor();
+    await c.getByText('Ти не встиг(ла) відповісти').waitFor();
+
+    await teacher.getByRole('button', { name: 'Підсумки' }).click();
+    await teacher.getByTestId('game-finished').waitFor();
+    for (const p of pupils) await p.getByTestId('game-final').waitFor();
+    await a.getByTestId('game-final').getByText('Правильних відповідей: 3 з 3').waitFor();
+    await c.getByTestId('game-final').getByText('Правильних відповідей: 1 з 3').waitFor();
+
+    // The game is over: the banner is gone.
+    await a.getByRole('button', { name: 'На головну' }).click();
+    await a.getByTestId('student-home').waitFor();
+    await a.waitForTimeout(500);
+    expect(await a.getByTestId('game-banner').count()).toBe(0);
+
+    await teacher.getByRole('link', { name: 'Відкрити журнал' }).click();
+    await teacher.getByText('(гра)').waitFor();
+    await teacher.getByTestId('journal-Андрій Ж.').getByText('100%').waitFor();
+    await teacher.getByTestId('journal-Богдана З.').getByText('67%').waitFor();
+    await teacher.getByTestId('journal-Василь К.').getByText('33%').waitFor();
+
+    process.stdout.write(
+      `\n[measure] live game: answer → projector ${latencies.join(', ')} ms (max ${Math.max(...latencies)})\n`,
+    );
+    for (const ms of latencies) expect(ms).toBeLessThanOrEqual(1500);
+    for (const p of [teacher, ...pupils]) expect(p.errors).toEqual([]);
+    for (const ctx of ctxs) await ctx.close();
+  });
+});
+
 describe('leaving and small screens', () => {
   it('logout uses the in-page dialog and forgets this browser', async () => {
     const page = await open(teacherPc, '/t');

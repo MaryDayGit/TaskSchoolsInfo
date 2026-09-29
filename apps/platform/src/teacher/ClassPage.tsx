@@ -28,6 +28,7 @@ import { useConfirm } from '../components/Dialog';
 import { ErrorText, Modal, Spinner } from '../components/Modal';
 import { SecretView } from '../components/SecretView';
 import { deleteClassWork } from '../data/assignments';
+import { deleteClassGames } from '../data/games';
 import { ClassForm } from './ClassesPage';
 import { ClassWork } from './ClassWork';
 import { JournalTab } from './JournalTab';
@@ -191,6 +192,7 @@ function SettingsModal({ id, c, onClose }: { id: string; c: ClassDoc; onClose: (
                 })
               ) {
                 await deleteClassWork(id);
+                await deleteClassGames(id);
                 await deleteClass(id, c.joinCode);
                 navigate('/t');
               }

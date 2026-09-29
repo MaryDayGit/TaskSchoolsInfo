@@ -41,6 +41,7 @@ const game = (over: Record<string, unknown> = {}) => ({
   starts: { '0': Date.now() },
   junior: false,
   createdAt: 1,
+  active: true,
   ...over,
 });
 const answer = (over: Record<string, unknown> = {}) => ({
@@ -92,6 +93,10 @@ describe('games', () => {
   it('pupils of the class see the game; others do not; only the teacher runs it', async () => {
     await assertSucceeds(ola().doc('games/g1').get());
     await assertSucceeds(ola().collection('games').where('classId', '==', 'c1').get());
+    await assertSucceeds(
+      ola().collection('games').where('classId', '==', 'c1').where('active', '==', true).get(),
+    );
+    await assertFails(ola().collection('games').where('active', '==', true).get());
     await assertFails(ivan().doc('games/g1').get());
     await assertFails(guest().doc('games/g1').get());
     await assertFails(ola().doc('games/g1').update({ status: 'finished' }));

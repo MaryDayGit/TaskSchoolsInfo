@@ -398,7 +398,7 @@ service cloud.firestore {
       allow create, update: if isTeacher()
         && request.resource.data.keys().hasOnly(['classId', 'className', 'quizId', 'title', 'questions', 'status',
                                                  'index', 'deadline', 'starts', 'junior', 'stats', 'reveal',
-                                                 'players', 'leaderboard', 'createdAt', 'finishedAt'])
+                                                 'players', 'leaderboard', 'createdAt', 'finishedAt', 'active'])
         && request.resource.data.classId is string
         && request.resource.data.status in ['lobby', 'question', 'reveal', 'finished']
         && request.resource.data.index is int

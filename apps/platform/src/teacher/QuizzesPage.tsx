@@ -21,6 +21,7 @@ import { Icon } from '../components/Icon';
 import { ErrorText, Modal, Spinner } from '../components/Modal';
 import { clean, countLabel, formatShortDate, questionsLabel } from '../lib/text';
 import { AssignModal, byFolder } from './AssignModal';
+import { GameModal } from './GameModal';
 import { QUIZ_TEMPLATES } from './templates';
 
 type Quiz = { id: string; data: QuizDoc };
@@ -42,6 +43,7 @@ export function QuizzesPage() {
   const [folder, setFolder] = useState('');
   const [answers, setAnswers] = useState<Quiz | null>(null);
   const [assign, setAssign] = useState<string | null>(null);
+  const [play, setPlay] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -152,6 +154,9 @@ export function QuizzesPage() {
                   <button className="btn btn-sm" onClick={() => setAssign(q.id)}>
                     Дати завдання
                   </button>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setPlay(q.id)}>
+                    Жива гра
+                  </button>
                   <button className="btn btn-secondary btn-sm" onClick={() => setAnswers(q)}>
                     <Icon name="key" /> Відповіді
                   </button>
@@ -225,6 +230,7 @@ export function QuizzesPage() {
 
       {answers && <AnswersModal quiz={answers} onClose={() => setAnswers(null)} />}
       {assign && <AssignModal quizId={assign} onClose={() => setAssign(null)} />}
+      {play && <GameModal quizId={play} onClose={() => setPlay(null)} />}
       {importing && (
         <ImportModal
           folders={folders}
