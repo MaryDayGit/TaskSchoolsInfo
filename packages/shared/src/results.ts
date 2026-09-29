@@ -116,24 +116,42 @@ export interface Journal {
   cells: Record<string, Score>;
 }
 
+export interface JournalGame {
+  id: string;
+  title: string;
+  /** Milliseconds. */
+  date: number;
+  /** gameResults written by the host at the end (scores computed by the host). */
+  results: { studentId: string; correctCount: number; total: number }[];
+}
+
 export function buildJournal(input: {
   students: JournalStudent[];
   assignments: JournalAssignment[];
   submissions: (RawSubmission & { assignmentId: string })[];
+  games?: JournalGame[];
 }): Journal {
   const students = [...input.students].sort((a, b) =>
     a.displayName.localeCompare(b.displayName, 'uk'),
   );
   const known = new Set(students.map((s) => s.id));
-  const columns = [...input.assignments]
-    .sort((a, b) => a.date - b.date)
-    .map(({ id, kind, title, date }) => ({ id, kind, title, date }));
+  const games = input.games ?? [];
+  const columns: JournalColumn[] = [
+    ...input.assignments.map(({ id, kind, title, date }) => ({ id, kind, title, date })),
+    ...games.map(({ id, title, date }) => ({ id, kind: 'live' as const, title, date })),
+  ].sort((a, b) => a.date - b.date);
 
   const cells: Journal['cells'] = {};
   for (const a of input.assignments) {
     const subs = input.submissions.filter((s) => s.assignmentId === a.id && known.has(s.studentId));
     for (const r of assignmentResults(a.questions, subs).values()) {
       cells[`${r.studentId}:${a.id}`] = { correctCount: r.correctCount, total: r.total };
+    }
+  }
+  for (const g of games) {
+    for (const r of g.results) {
+      if (known.has(r.studentId))
+        cells[`${r.studentId}:${g.id}`] = { correctCount: r.correctCount, total: r.total };
     }
   }
   return { students, columns, cells };
