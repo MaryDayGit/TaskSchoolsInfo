@@ -1,0 +1,17 @@
+# Render Blueprint: free web service built from the Dockerfile.
+# The database lives on Neon (free PostgreSQL) — see docs/DEPLOY.md.
+services:
+  - type: web
+    name: infoklas
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: TRUST_PROXY
+        value: 'true'
+      - key: TEACHER_SIGNUP
+        value: 'false'
