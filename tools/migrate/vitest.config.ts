@@ -2,6 +2,8 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    projects: ['packages/shared', 'apps/server', 'tools/migrate'],
+    name: 'migrate',
+    include: ['*.test.ts'],
+    exclude: ['*.emulator.test.ts'],
   },
 });

@@ -4,6 +4,7 @@ import { CardsPage } from './CardsPage';
 import { ClassPage } from './ClassPage';
 import { AssignmentPage } from './AssignmentPage';
 import { GameHostPage } from './GameHost';
+import { HistoryPage } from './HistoryPage';
 import { ClassesPage } from './ClassesPage';
 import { QuizEditorPage } from './QuizEditorPage';
 import { QuizzesPage } from './QuizzesPage';
@@ -25,6 +26,7 @@ function TeacherLayout() {
               Класи
             </NavLink>
             <NavLink to="/t/quizzes">Банк тестів</NavLink>
+            <NavLink to="/t/history">Історія</NavLink>
           </nav>
           <span className="badge">попередня версія</span>
           <button className="btn btn-ghost btn-sm topbar-end" onClick={logout}>
@@ -42,6 +44,7 @@ function TeacherLayout() {
         <Route path="quizzes/:id" element={<QuizEditorPage />} />
         <Route path="assignments/:id" element={<AssignmentPage />} />
         <Route path="game/:id" element={<GameHostPage />} />
+        <Route path="history" element={<HistoryPage />} />
       </Routes>
     </>
   );

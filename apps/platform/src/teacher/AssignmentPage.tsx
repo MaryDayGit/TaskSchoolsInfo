@@ -83,12 +83,13 @@ export function AssignmentPage() {
   );
   const inClass = students.filter((s) => results.has(s.id)).map((s) => results.get(s.id)!);
 
-  // Keep the short summary on the assignment fresh for the class page.
+  // Keep the short summary on the assignment fresh for the class page. A lesson
+  // test keeps the History summary instead (guests included, as Клас-пульт).
   const ready = !a.loading && !key.loading && !subs.loading && !roster.loading && !!key.data;
   const summary = summarize(inClass);
   const stored = a.data?.summary;
   useEffect(() => {
-    if (!ready || a.pending) return;
+    if (!ready || a.pending || a.data?.kind === 'lesson') return;
     if (
       stored &&
       stored.submitted === summary.submitted &&
@@ -96,7 +97,7 @@ export function AssignmentPage() {
     )
       return;
     saveSummary(id, summary.submitted, summary.avgPercent).catch(() => {});
-  }, [ready, a.pending, id, stored, summary.submitted, summary.avgPercent]);
+  }, [ready, a.pending, a.data?.kind, id, stored, summary.submitted, summary.avgPercent]);
 
   if (a.loading) return <Spinner />;
   if (!a.exists || !a.data) {

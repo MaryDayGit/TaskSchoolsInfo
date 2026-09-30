@@ -1,15 +1,9 @@
-import { useMemo } from 'react';
-import { lessonRows, percent, toCsv, type Question } from '@infoklas/shared';
+import { percent, toCsv } from '@infoklas/shared';
 import { pcLabel, type PcCard } from '@infoklas/shared/lesson';
-import { useDoc, useQuery } from '../../firebase/watch';
-import { rosterCol, type RosterDoc } from '../../data/classes';
-import { keyRef, type KeyDoc, type SubmissionDoc } from '../../data/assignments';
-import {
-  guestResultsQuery,
-  lessonSubmissionsQuery,
-  type GuestResultDoc,
-  type RoomDoc,
-} from '../../data/room';
+import { useDoc } from '../../firebase/watch';
+import { assignmentRef, type AssignmentDoc } from '../../data/assignments';
+import type { RoomDoc } from '../../data/room';
+import { useLessonStats, useSaveSummary } from '../useLessonRows';
 import { Icon } from '../../components/Icon';
 import { downloadText } from '../../lib/download';
 import { ScoreBadge } from '../AssignmentPage';
@@ -32,7 +26,7 @@ export function LessonResults({ room, pcs }: { room: RoomDoc; pcs: PcCard[] }) {
           <h2 className="panel-title">Результати</h2>
           <p className="muted">
             {room.lastTest && !id
-              ? 'Цьому класу ще не надсилали тест. Попередні результати — у журналі класу.'
+              ? 'Цьому класу ще не надсилали тест. Попередні результати — у вкладці «Історія».'
               : 'Тут з’являться результати, коли ви надішлете тест.'}
           </p>
         </>
@@ -42,33 +36,15 @@ export function LessonResults({ room, pcs }: { room: RoomDoc; pcs: PcCard[] }) {
 }
 
 function Results({ id, room, pcs }: { id: string; room: RoomDoc; pcs: PcCard[] }) {
-  const key = useDoc<KeyDoc>(keyRef(id));
-  const subs = useQuery<SubmissionDoc & { pcId?: string }>(
-    lessonSubmissionsQuery(id),
-    `lsubs:${id}`,
-  );
-  const guests = useQuery<GuestResultDoc>(guestResultsQuery(id), `guests:${id}`);
-  const roster = useQuery<RosterDoc>(
-    room.classId ? rosterCol(room.classId) : null,
-    `roster:${room.classId}`,
-  );
-
-  const questions: Question[] = useMemo(() => key.data?.questions ?? [], [key.data]);
-  const rows = useMemo(
-    () =>
-      lessonRows({
-        questions,
-        submissions: subs.docs.map((d) => ({
-          ...d.data,
-          submittedAt: d.data.submittedAt?.toMillis() ?? null,
-        })),
-        guests: guests.docs.map((d) => ({
-          ...d.data,
-          submittedAt: d.data.submittedAt?.toMillis() ?? null,
-        })),
-        names: new Map(roster.docs.map((r) => [r.id, r.data.displayName])),
-      }),
-    [questions, subs.docs, guests.docs, roster.docs],
+  const assignment = useDoc<AssignmentDoc>(assignmentRef(id));
+  const { questions, stats, loading } = useLessonStats(id, room.classId ?? null);
+  const rows = stats.rows;
+  // «Історія»: здали N · X% in the list without opening the test.
+  useSaveSummary(
+    id,
+    assignment.data?.summary,
+    !loading && !assignment.loading && !!assignment.data && stats.total > 0,
+    stats,
   );
   const target = room.lastTest?.target?.length ? room.lastTest.target : null;
   const done = new Set(rows.map((r) => r.pcId));

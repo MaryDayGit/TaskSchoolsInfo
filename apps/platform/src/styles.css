@@ -1927,3 +1927,253 @@ p {
     font-size: 1.15rem;
   }
 }
+
+/* ---------- Этап 6: «Історія» (статистика тестов уроков, как в Клас-пульте) ---------- */
+.page-wide {
+  max-width: 1280px;
+}
+.history {
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  margin-top: 16px;
+}
+.history-side,
+.history-detail {
+  min-width: 0;
+}
+.history-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
+}
+.stack-tight {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.history-day {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.history-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.history-item:hover {
+  border-color: var(--primary);
+}
+.history-item.selected {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.history-item-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.stat-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+.stat-tile {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+.stat-label,
+.stat-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.stat-value {
+  margin: 4px 0;
+  color: var(--ink);
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+.dist {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  height: 140px;
+}
+.dist-col {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+.dist-count {
+  height: 18px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.dist-track {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  max-width: 44px;
+  border-bottom: 1px solid var(--border);
+}
+.dist-bar {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: 4px 4px 0 0;
+  background: var(--primary);
+}
+.dist-label {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.qstats {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.qstat-head {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) minmax(60px, 34%) 44px;
+  gap: 10px;
+  align-items: center;
+}
+.qstat-num {
+  color: var(--primary);
+  font-weight: 800;
+}
+.qstat-text {
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qstat-bar,
+.qopt-bar {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--bg);
+}
+.qstat-fill,
+.qopt-fill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--primary);
+}
+.qstat-percent {
+  font-weight: 800;
+  text-align: right;
+}
+.qopts {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 8px 0 0 34px;
+}
+.qopt {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(60px, 30%) 32px;
+  gap: 10px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 14px;
+}
+.qopt-text {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.qopt .qopt-fill {
+  background: var(--muted);
+}
+.qopt-correct {
+  color: var(--text);
+  font-weight: 700;
+}
+.qopt-correct .qopt-fill {
+  background: var(--ok);
+}
+.qopt-correct .icon {
+  color: var(--ok);
+}
+.qopt-tag {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #e3f5ec;
+  color: var(--ok);
+  font-size: 12px;
+}
+.qopt-none {
+  font-style: italic;
+}
+.qopt-count {
+  color: var(--text);
+  font-weight: 700;
+  text-align: right;
+}
+.marks {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.sq {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: var(--border);
+}
+.sq-ok {
+  background: var(--ok);
+}
+.sq-bad {
+  background: var(--bad);
+}
+@media (max-width: 760px) {
+  .history {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .history-list {
+    max-height: 50vh;
+  }
+  .qopts {
+    margin-left: 0;
+  }
+}

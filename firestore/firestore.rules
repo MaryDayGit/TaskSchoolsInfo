@@ -259,7 +259,8 @@ service cloud.firestore {
 
     function validAssignment(data) {
       return data.keys().hasOnly(['classId', 'kind', 'quizId', 'title', 'questions', 'dueAt',
-                                  'maxAttempts', 'reveal', 'revealNow', 'roomId', 'createdAt', 'summary'])
+                                  'maxAttempts', 'reveal', 'revealNow', 'roomId', 'createdAt', 'summary',
+                                  'legacy'])
         && data.classId is string
         && data.kind in ['homework', 'lesson']
         && data.quizId is string
@@ -270,7 +271,8 @@ service cloud.firestore {
             || (data.maxAttempts is int && data.maxAttempts >= 1 && data.maxAttempts <= 20))
         && data.reveal in ['immediate', 'after_due', 'never']
         && data.revealNow is bool
-        && (!('roomId' in data) || data.roomId == null || data.roomId is string);
+        && (!('roomId' in data) || data.roomId == null || data.roomId is string)
+        && (!('legacy' in data) || data.legacy is bool);
     }
 
     // Задание: снимок вопросов БЕЗ ответов. Читают учитель и ученики класса.

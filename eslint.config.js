@@ -12,6 +12,8 @@ export default tseslint.config(
       '.cache/**',
       'apps/server/drizzle/**',
       'coverage/**',
+      // A verbatim copy of Клас-пульт code (browser ES5), used only by the migration tests.
+      'tools/migrate/test/klas-pult-stats.js',
     ],
   },
   js.configs.recommended,

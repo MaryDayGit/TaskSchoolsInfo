@@ -12,3 +12,8 @@ coverage/
 
 # Firebase CLI deploy cache
 .firebase/
+
+# Резервные копии и отчёты переноса (tools/migrate): там личные данные учеников
+backup-*.json
+verify-*.csv
+plan-*.json
