@@ -759,7 +759,8 @@ describe('stage 5: live game', () => {
     await page.getByRole('radio', { name: option, exact: true }).click();
     await hostAnswered(n);
     latencies.push(Date.now() - t0);
-    await page.getByTestId('answer-accepted').waitFor();
+    // The last answer reveals at once: «Відповідь прийнято» may be replaced by the result.
+    await page.getByTestId('answer-accepted').or(page.getByTestId('game-reveal')).waitFor();
   };
 
   it('teacher opens a game for a class; three pupils join from the banner', async () => {
@@ -818,9 +819,12 @@ describe('stage 5: live game', () => {
       .waitFor();
     await c.getByTestId('game-reveal').getByText('Неправильно').waitFor();
     await c.getByText('Правильна відповідь: Інтернет').waitFor();
-    // The faster pupil gets more points for the same right answer.
+    // The faster pupil gets no fewer points for the same right answer (the bonus
+    // changes by 1 point per 60 ms, so two quick taps may score the same;
+    // game.test.ts checks the bonus itself).
     const score = async (p: TrackedPage) => Number(await p.getByTestId('my-score').textContent());
-    expect(await score(a)).toBeGreaterThan(await score(b));
+    expect(await score(a)).toBeGreaterThanOrEqual(await score(b));
+    expect(await score(a)).toBeLessThanOrEqual(1000);
     expect(await score(b)).toBeGreaterThanOrEqual(500);
     expect(await score(c)).toBe(0);
     expect(await teacher.locator('.leader').first().textContent()).toContain('Андрій Ж.');

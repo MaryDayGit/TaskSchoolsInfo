@@ -415,7 +415,8 @@ p {
 }
 .btn-danger-ghost {
   background: transparent;
-  color: var(--bad);
+  /* Darker than --bad: small red text needs 4.5:1 on white (axe, WCAG AA). */
+  color: #b3261e;
 }
 .btn-danger-ghost:hover {
   background: var(--danger-soft);
@@ -1735,6 +1736,9 @@ p {
 .game-host .btn-ghost {
   color: #fff;
 }
+.game-host .btn-danger-ghost {
+  color: #ffb4ab;
+}
 .host-lobby,
 .host-finished {
   align-items: center;
@@ -2176,4 +2180,14 @@ p {
   .qopts {
     margin-left: 0;
   }
+}
+
+/* «Старші»: ghost buttons on the dark card (axe, WCAG AA contrast). */
+.theme-senior .btn-ghost,
+.theme-senior .back-link {
+  color: #8b949e;
+}
+.theme-senior .btn-ghost:hover {
+  background: #21262d;
+  color: #e6edf3;
 }
