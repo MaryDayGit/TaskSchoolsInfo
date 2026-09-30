@@ -48,6 +48,17 @@ firebase.json, .firebaserc   НОВОЕ: из Клас-пульта (hosting →
 
 Перенос выполняет скрипт `tools/migrate/*.ts` на ноутбуке учителя или в GitHub Actions с секретом. Он работает через **Firebase Admin SDK** (ключ сервисного аккаунта из консоли Firebase, который нигде не сохраняется) и **только добавляет** новые документы.
 
+```bash
+export GOOGLE_APPLICATION_CREDENTIALS=~/klas-pult-key.json    # ключ: только на ноутбуке
+npm run backup -- --out backup-2026-10-10.json                 # 1. резервная копия всей базы
+npm run migrate -- klas-pult --dry-run                         # 2. отчёт: что будет создано
+npm run migrate -- klas-pult --grade "Гурток=7"                # 3. перенос (только создание)
+npm run migrate:verify                                         # 4. сверка количества и баллов (CSV)
+npm run migrate -- infoklas --pg "postgres://…" --dry-run      # то же для ІнфоКласа
+```
+
+Прогон на копии: `FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 npx tsx tools/migrate/restore.ts backup.json --project demo-klas-pult`, затем те же команды с `--project demo-klas-pult` (при заданном `FIRESTORE_EMULATOR_HOST` скрипты работают только с эмулятором). Файлы `backup-*.json` и `verify-*.csv` содержат имена учеников и не коммитятся (`.gitignore`).
+
 Порядок: **сухой прогон** (`--dry-run`, выводит, что будет создано) → резервная копия → перенос → сверка количества.
 
 ### Из Клас-пульта (Firestore того же проекта)
@@ -93,8 +104,8 @@ firebase.json, .firebaserc   НОВОЕ: из Клас-пульта (hosting →
 
 1. Проверить, что у всех этапов выполнены критерии готовности ([ROADMAP.md](ROADMAP.md)) и CI зелёный.
 2. Поставить на git-метку текущий Клас-пульт: `v1-final` в репозитории `klas-pult`.
-3. Резервная копия: `tools/migrate/backup.ts` (Firestore в JSON) и `pg_dump` ІнфоКласа.
-4. Перенос: `migrate --dry-run` → проверить отчёт → `migrate` → сверка количества документов.
+3. Резервная копия: `npm run backup` (Firestore в JSON) и `pg_dump` ІнфоКласа.
+4. Перенос: `npm run migrate -- klas-pult --dry-run` → проверить отчёт → `npm run migrate -- klas-pult` → `npm run migrate:verify` (количество и баллы по CSV).
 5. Опубликовать новую платформу на основной адрес: `firebase deploy --only hosting,firestore`.
    - `https://klas-pult.web.app` — страница ученика (как раньше, школьные ПК ничего не замечают);
    - `https://klas-pult.web.app/admin.html` — переадресация на кабинет учителя (для закладок);

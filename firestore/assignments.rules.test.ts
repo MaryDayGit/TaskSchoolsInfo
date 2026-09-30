@@ -218,6 +218,17 @@ describe('assignments', () => {
         .doc('assignments/n3')
         .set(assignment({ extra: true })),
     );
+    // A lesson test moved from Клас-пульт (tools/migrate) is marked `legacy`.
+    await assertSucceeds(
+      teacher()
+        .doc('assignments/n4')
+        .set(assignment({ kind: 'lesson', legacy: true })),
+    );
+    await assertFails(
+      teacher()
+        .doc('assignments/n3')
+        .set(assignment({ legacy: 'yes' })),
+    );
   });
 
   it('the teacher updates settings and the summary, but cannot move it to another class', async () => {

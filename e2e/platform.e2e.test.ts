@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 import { BASE_URL, computer, launch, open, resetEmulators, type TrackedPage } from './helpers';
+import { INFOKLAS, closeAdmin, migrateInfoKlas, migrateKlasPult } from './migrate';
 
 let browser: Browser;
 let teacherPc: BrowserContext;
@@ -890,6 +891,118 @@ describe('stage 5: live game', () => {
     for (const ms of latencies) expect(ms).toBeLessThanOrEqual(1500);
     for (const p of [teacher, ...pupils]) expect(p.errors).toEqual([]);
     for (const ctx of ctxs) await ctx.close();
+  });
+});
+
+describe('stage 6: history and moved data', () => {
+  afterAll(async () => {
+    await closeAdmin();
+  });
+
+  it('«Історія»: lesson tests with the summary, statistics and CSV', async () => {
+    await teacher.goto(`${BASE_URL}/t/history`);
+    await teacher.getByRole('heading', { name: 'Історія тестів' }).waitFor();
+    const list = teacher.getByTestId('history-list');
+    await list.getByText('Сьогодні').first().waitFor();
+    // Stage 4: Ліна 3 / 3 and a guest 1 / 3 → 2 of 3 on average.
+    const item = list.locator('.history-item', { hasText: '5-Г' }).filter({ hasText: 'Мережі' });
+    await item.getByText('здали 2 · 67%').waitFor();
+    await item.click();
+    const detail = teacher.getByTestId('history-detail');
+    await detail.getByTestId('h-title').getByText('Мережі').waitFor();
+    await detail.getByTestId('h-tiles').getByText('2 з 3').waitFor();
+    await detail.getByTestId('hr-Ліна Б.').getByText('3 / 3').waitFor();
+    await detail.getByTestId('hr-Марко Гість').getByText('1 / 3').waitFor();
+    const [csv] = await Promise.all([
+      teacher.waitForEvent('download'),
+      detail.getByRole('button', { name: 'Завантажити CSV' }).click(),
+    ]);
+    expect(csv.suggestedFilename()).toMatch(/^Результати - Мережі - 5-Г - \d{4}-\d\d-\d\d\.csv$/);
+    const text = readFileSync((await csv.path())!, 'utf8');
+    expect(text).toContain('ПК 03;Ліна Б.;здав(ла);3;3;1;1;1');
+    expect(text).toContain('ПК 07;Марко Гість;здав(ла);1;3;1;;');
+
+    // On a phone the list and the statistics go one under the other.
+    for (const width of [375, 768]) {
+      await teacher.setViewportSize({ width, height: 740 });
+      const overflow = await teacher.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(overflow, `history at ${width}px`).toBeLessThanOrEqual(0);
+    }
+    await teacher.setViewportSize({ width: 1024, height: 768 });
+    expect(teacher.errors).toEqual([]);
+  });
+
+  it('Клас-пульт history moves over; scores and CSV are as in Клас-пульт', async () => {
+    const res = await migrateKlasPult();
+    expect(res.failed).toEqual([]);
+    await teacher.reload();
+    await teacher.locator('.history-filters select').first().selectOption({ label: '5-А' });
+    const list = teacher.getByTestId('history-list');
+    const algo = list.locator('.history-item', { hasText: 'Алгоритми' });
+    await algo.getByText('здали 3 · 78%').waitFor({ timeout: 15_000 });
+    await list.getByText('Мережі').waitFor();
+    await list.getByText('ще ніхто не здав').waitFor();
+    await algo.click();
+    const detail = teacher.getByTestId('history-detail');
+    await detail.getByText('з Клас-пульта', { exact: false }).waitFor();
+    const tiles = detail.getByTestId('h-tiles');
+    await tiles.getByText('2,3 з 3').waitFor();
+    await tiles.getByText('78%').waitFor();
+    await tiles.getByText('№ 2').waitFor();
+    // PC 03 sent twice: the last answers count, as in Клас-пульт.
+    await detail.getByTestId('hr-Оля К.').getByText('3 / 3').waitFor();
+    await detail.getByTestId('hr-Петро М.').getByText('1 / 3').waitFor();
+    if (process.env.SCREENSHOT_DIR) {
+      await teacher.screenshot({
+        path: `${process.env.SCREENSHOT_DIR}/history.png`,
+        fullPage: true,
+      });
+    }
+    const [csv] = await Promise.all([
+      teacher.waitForEvent('download'),
+      detail.getByRole('button', { name: 'Завантажити CSV' }).click(),
+    ]);
+    expect(csv.suggestedFilename()).toBe('Результати - Алгоритми - 5-А - 2026-09-25.csv');
+    expect(readFileSync((await csv.path())!, 'utf8').split('\r\n')).toEqual([
+      '﻿ПК;Учень;Статус;Бал;Максимум;Питання 1;Питання 2;Питання 3',
+      'ПК 03;Оля К.;здав(ла);3;3;1;1;1',
+      'ПК 07;Петро М.;здав(ла);1;3;1;;0',
+      'ПК 12;Ірина;здав(ла);3;3;1;1;1',
+      '',
+    ]);
+
+    // «Видалити з історії» asks in the page.
+    await teacher.locator('.history-filters select').first().selectOption({ label: 'Без назви' });
+    await list.getByText('Видалений тест').click();
+    await detail.getByRole('button', { name: 'Видалити з історії' }).click();
+    await teacher.getByRole('alertdialog').getByRole('button', { name: 'Видалити' }).click();
+    await teacher.getByText('Нічого не знайдено для цього фільтра.').waitFor();
+    expect(teacher.errors).toEqual([]);
+  });
+
+  it('an ІнфоКлас pupil logs in with the old password and finds the old work', async () => {
+    const res = await migrateInfoKlas();
+    expect(res.failed).toEqual([]);
+    const phone = await computer(browser, { width: 375, height: 740 });
+    const page = await open(phone, `/join/${INFOKLAS.code}`);
+    await page.getByRole('button', { name: INFOKLAS.name }).click({ timeout: 15_000 });
+    await page.getByLabel('Пароль').fill(INFOKLAS.password);
+    await page.getByRole('button', { name: 'Увійти' }).click();
+    await page.getByRole('heading', { name: `Привіт, ${INFOKLAS.name}!` }).waitFor();
+    await page.getByTestId('hw-Одиниці (дз)').getByText('Здано').waitFor();
+    expect(page.errors).toEqual([]);
+    await phone.close();
+
+    await teacher.goto(`${BASE_URL}/t`);
+    await teacher.getByRole('link', { name: /9-А/ }).click();
+    await teacher.getByRole('tab', { name: 'Журнал' }).click();
+    const row = teacher.getByTestId(`journal-${INFOKLAS.name}`);
+    await row.getByText('50%').waitFor();
+    await row.getByText('100%').waitFor();
+    await teacher.getByTestId('journal').getByText('(гра)').waitFor();
+    expect(teacher.errors).toEqual([]);
   });
 });
 

@@ -12,7 +12,8 @@
     "./results": "./src/results.ts",
     "./csv": "./src/csv.ts",
     "./lesson": "./src/lesson.ts",
-    "./game": "./src/game.ts"
+    "./game": "./src/game.ts",
+    "./stats": "./src/stats.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"

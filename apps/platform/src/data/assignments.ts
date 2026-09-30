@@ -43,6 +43,8 @@ export interface AssignmentDoc {
   roomId: string | null;
   createdAt: Timestamp | null;
   summary?: AssignmentSummary;
+  /** Moved from Клас-пульт (sessions): no pupils, only guest results by PC. */
+  legacy?: boolean;
 }
 
 export interface KeyDoc {

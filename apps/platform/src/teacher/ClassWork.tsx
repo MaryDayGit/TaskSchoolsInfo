@@ -61,7 +61,8 @@ export function ClassWork({
                   <span>· {attemptsText(a)}</span>
                   {a.summary && (
                     <span>
-                      · здали {a.summary.submitted} з {studentCount}, середній{' '}
+                      · здали {a.summary.submitted}
+                      {a.kind === 'lesson' ? '' : ` з ${studentCount}`}, середній{' '}
                       {a.summary.avgPercent}%
                     </span>
                   )}
