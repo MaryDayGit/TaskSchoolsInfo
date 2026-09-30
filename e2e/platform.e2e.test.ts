@@ -759,7 +759,8 @@ describe('stage 5: live game', () => {
     await page.getByRole('radio', { name: option, exact: true }).click();
     await hostAnswered(n);
     latencies.push(Date.now() - t0);
-    await page.getByTestId('answer-accepted').waitFor();
+    // The last answer reveals at once: «Відповідь прийнято» may be replaced by the result.
+    await page.getByTestId('answer-accepted').or(page.getByTestId('game-reveal')).waitFor();
   };
 
   it('teacher opens a game for a class; three pupils join from the banner', async () => {
