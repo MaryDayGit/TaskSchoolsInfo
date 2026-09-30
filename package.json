@@ -24,6 +24,7 @@
     "test:rules": "npm run firebase -- emulators:exec --only firestore --project demo-klas-pult \"vitest run --config firestore/vitest.config.ts && vitest run --config tools/migrate/vitest.emulator.config.ts\"",
     "test:e2e": "npm run build -w @infoklas/platform && npm run firebase -- emulators:exec --only auth,firestore,hosting --project demo-klas-pult \"vitest run --config e2e/vitest.config.ts\"",
     "check:platform": "node tools/check-platform.mjs",
+    "test:all": "npm run check && npm run test:rules && npm run test:e2e && npm run check:platform",
     "backup": "tsx tools/migrate/backup.ts",
     "migrate": "tsx tools/migrate/migrate.ts",
     "migrate:verify": "tsx tools/migrate/verify.ts",
