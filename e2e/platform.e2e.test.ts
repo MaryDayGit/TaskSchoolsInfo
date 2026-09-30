@@ -95,7 +95,7 @@ async function createClass(name: string, grade: number): Promise<string> {
   await teacher.getByRole('button', { name: '+ Новий клас' }).click();
   await teacher.getByLabel('Назва класу').fill(name);
   await teacher.getByLabel('Рік навчання').selectOption(String(grade));
-  await teacher.getByRole('button', { name: 'Створити' }).click();
+  await teacher.getByRole('button', { name: 'Створити', exact: true }).click();
   await teacher.getByRole('heading', { name: `Клас ${name}` }).waitFor();
   const code = (await teacher.getByTestId('join-code').locator('strong').textContent())!.trim();
   expect(code).toMatch(/^\d{6}$/);
@@ -296,7 +296,8 @@ describe('stage 3: bank, homework, results, journal', () => {
   it('teacher imports a test from text; errors name the line', async () => {
     await teacher.goto(`${BASE_URL}/t/quizzes`);
     await teacher.getByRole('heading', { name: 'Банк тестів' }).waitFor();
-    await teacher.getByRole('button', { name: 'Імпорт' }).click();
+    await teacher.getByRole('button', { name: 'Створити тест' }).click();
+    await teacher.getByRole('button', { name: /Вставити готовий текст/ }).click();
     const dialog = teacher.getByRole('dialog', { name: 'Імпорт тестів з тексту' });
     await dialog.getByLabel('Текст тестів').fill('Питання без заголовка');
     await dialog.getByRole('alert').getByText('Рядок 1').waitFor();
@@ -318,7 +319,7 @@ describe('stage 3: bank, homework, results, journal', () => {
   it('teacher adds a word-answer question in the editor', async () => {
     await teacher.getByTestId('quiz-Мережі').getByRole('link', { name: 'Редагувати' }).click();
     await teacher.getByLabel('Назва тесту').waitFor();
-    await teacher.getByRole('button', { name: 'Питання з відповіддю словом' }).click();
+    await teacher.getByRole('button', { name: /Відповідь словом/ }).click();
     await teacher.getByRole('button', { name: 'Зберегти' }).click();
     await teacher.getByRole('alert').getByText('Питання 3: Напишіть текст питання').waitFor();
     const q3 = teacher.getByTestId('question-3');
@@ -326,7 +327,7 @@ describe('stage 3: bank, homework, results, journal', () => {
     await q3.getByLabel('Правильна відповідь').fill('Київ');
     await teacher.getByRole('button', { name: 'Зберегти' }).click();
     await teacher.getByRole('status').getByText('Збережено').waitFor();
-    await teacher.getByRole('button', { name: '← Банк тестів' }).click();
+    await teacher.getByRole('button', { name: '← Тести' }).click();
     await teacher.getByTestId('quiz-Мережі').getByText('3 питання').waitFor();
   });
 
@@ -453,7 +454,7 @@ describe('stage 4: lesson console (Клас-пульт criteria)', () => {
 
   const lessonPage = async () => {
     await teacher.goto(`${BASE_URL}/t/lesson`);
-    await teacher.getByRole('heading', { name: 'Урок' }).waitFor();
+    await teacher.getByRole('heading', { name: 'Урок', exact: true }).waitFor();
   };
   const startClass = async (name: string) => {
     await teacher.getByLabel('Новий клас').selectOption({ label: name });
@@ -648,7 +649,7 @@ describe('stage 4: lesson console (Клас-пульт criteria)', () => {
     const student = await open(teacherPc, '/');
     await student.getByRole('heading', { name: 'Введи код класу' }).waitFor({ timeout: 15_000 });
     await teacher.reload();
-    await teacher.getByRole('heading', { name: 'Урок' }).waitFor({ timeout: 15_000 });
+    await teacher.getByRole('heading', { name: 'Урок', exact: true }).waitFor({ timeout: 15_000 });
     await student.reload();
     await teacher.reload();
     await teacher.getByTestId('lesson-class').getByText('5-Г').waitFor({ timeout: 15_000 });

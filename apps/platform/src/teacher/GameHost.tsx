@@ -31,6 +31,7 @@ import {
 } from '../data/games';
 import { useConfirm } from '../components/Dialog';
 import { Icon, OptionShape } from '../components/Icon';
+import { QrCode } from '../components/QrCode';
 import { ErrorText, Spinner } from '../components/Modal';
 import { plural } from '../lib/text';
 
@@ -149,6 +150,7 @@ export function GameHostPage() {
       const t = scores(asked);
       await finishGame(
         id,
+        g.pin,
         g.classId,
         { players: playersMap(t, asked - 1), leaderboard: board(t) },
         gameResults(t, questions, asked),
@@ -218,6 +220,11 @@ export function GameHostPage() {
             Питання {g.index + 1} з {questions.length}
           </span>
         )}
+        {g.pin && g.status !== 'finished' && g.status !== 'lobby' && (
+          <span className="host-pin-chip" data-testid="game-pin-chip">
+            Приєднатися: {window.location.host} · код <b>{pinText(g.pin)}</b>
+          </span>
+        )}
         <div className="row host-bar-end">
           <button
             type="button"
@@ -245,10 +252,7 @@ export function GameHostPage() {
 
       {g.status === 'lobby' && (
         <div className="stack center host-lobby">
-          <p className="host-join">
-            Учні відкривають <b>{window.location.host}</b>, входять за своєю карткою і натискають
-            «Приєднатися до гри».
-          </p>
+          <JoinBox pin={g.pin} />
           <p className="stat-big" data-testid="joined-count">
             {playerIds.length}
           </p>
@@ -390,5 +394,41 @@ function Leaderboard({ entries }: { entries: { name: string; score: number }[] }
         </li>
       ))}
     </ol>
+  );
+}
+
+const pinText = (pin: string) => `${pin.slice(0, 3)} ${pin.slice(3)}`;
+
+/** How pupils join: the address, the game code in big digits and a QR code. */
+function JoinBox({ pin }: { pin?: string }) {
+  const host = window.location.host;
+  if (!pin) {
+    return (
+      <p className="host-join">
+        Учні відкривають <b>{host}</b>, входять за своєю карткою і натискають «Приєднатися до гри».
+      </p>
+    );
+  }
+  return (
+    <div className="host-join-box">
+      <div className="host-join-steps">
+        <p>
+          1. Відкрийте <b>{host}</b>
+        </p>
+        <p>2. Натисніть «Увійти в гру» і введіть код:</p>
+        <p className="host-pin" data-testid="game-pin">
+          {pinText(pin)}
+        </p>
+        <p>3. Оберіть своє ім’я і введіть пароль</p>
+      </div>
+      <div className="host-qr">
+        <QrCode
+          text={`${window.location.origin}/g/${pin}`}
+          size={220}
+          label={`QR-код для входу в гру ${pinText(pin)}`}
+        />
+        <p className="small">або наведіть камеру телефона</p>
+      </div>
+    </div>
   );
 }

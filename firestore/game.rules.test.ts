@@ -205,3 +205,28 @@ describe('game results', () => {
     await assertFails(ivan().doc('gameResults/g1_s1').get());
   });
 });
+
+describe('game codes', () => {
+  it('anyone signed in finds a game by its code; only the teacher makes or removes one', async () => {
+    const pin = { gameId: 'g1', classId: 'c1', createdAt: now() };
+    await assertSucceeds(teacher().doc('gamePins/123456').set(pin));
+    await assertSucceeds(guest().doc('gamePins/123456').get());
+    await assertFails(guest().collection('gamePins').get());
+    await assertFails(ola().doc('gamePins/654321').set(pin));
+    // The same code twice would be an update: refused, the host picks another one.
+    await assertFails(teacher().doc('gamePins/123456').set(pin));
+    await assertFails(teacher().doc('gamePins/12345').set(pin));
+    await assertFails(
+      teacher()
+        .doc('gamePins/111111')
+        .set({ ...pin, extra: 1 }),
+    );
+    await assertFails(ola().doc('gamePins/123456').delete());
+    await assertSucceeds(teacher().doc('gamePins/123456').delete());
+    await assertSucceeds(
+      teacher()
+        .doc('games/g9')
+        .set(game({ status: 'lobby', index: -1, pin: '123456' })),
+    );
+  });
+});

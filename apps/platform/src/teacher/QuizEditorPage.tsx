@@ -182,42 +182,65 @@ function Editor({ id, initial }: { id: string | null; initial: QuizDoc | null })
 
   const folders = [...new Set(all.docs.map((q) => q.data.folder).filter(Boolean))].sort();
 
+  const add = (type: QuestionType) => update((qs) => [...qs, newQuestion(type)]);
+
   return (
-    <main className="page page-narrow">
-      <button type="button" className="back-link link-btn" onClick={() => void leave()}>
-        ← Банк тестів
-      </button>
+    <main className="page page-narrow editor">
+      {/* Always on screen: where you are and «Зберегти тест». */}
+      <div className="editor-bar">
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => void leave()}>
+          ← Тести
+        </button>
+        <strong className="grow editor-bar-title">{id ? 'Редагування тесту' : 'Новий тест'}</strong>
+        {saved && !dirty && (
+          <span className="badge badge-ok" role="status">
+            <Icon name="check" /> Збережено
+          </span>
+        )}
+        {dirty && <span className="muted small">Є незбережені зміни</span>}
+        <button className="btn" onClick={() => void save()} disabled={busy}>
+          {busy ? 'Зберігаю…' : 'Зберегти тест'}
+        </button>
+      </div>
+      <ErrorText error={error} />
       <div className="stack">
-        <input
-          className="input input-title"
-          value={title}
-          onChange={(e) => {
-            setTitle(e.target.value);
-            touch();
-          }}
-          placeholder="Назва тесту, наприклад «Пристрої комп'ютера»"
-          aria-label="Назва тесту"
-          maxLength={TITLE_MAX}
-        />
-        <label className="field field-inline">
-          <span>Папка</span>
-          <input
-            className="input"
-            list="quiz-folders"
-            value={folder}
-            maxLength={FOLDER_MAX}
-            placeholder="наприклад, 5 клас"
-            onChange={(e) => {
-              setFolder(e.target.value);
-              touch();
-            }}
-          />
-          <datalist id="quiz-folders">
-            {folders.map((f) => (
-              <option key={f} value={f} />
-            ))}
-          </datalist>
-        </label>
+        <div className="card stack">
+          <label className="field">
+            <span>Назва тесту</span>
+            <input
+              className="input input-title"
+              value={title}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                touch();
+              }}
+              placeholder="Наприклад: Пристрої комп'ютера"
+              maxLength={TITLE_MAX}
+            />
+          </label>
+          <label className="field">
+            <span>Папка (необов’язково)</span>
+            <input
+              className="input"
+              list="quiz-folders"
+              value={folder}
+              maxLength={FOLDER_MAX}
+              placeholder="наприклад, 5 клас"
+              onChange={(e) => {
+                setFolder(e.target.value);
+                touch();
+              }}
+            />
+            <datalist id="quiz-folders">
+              {folders.map((f) => (
+                <option key={f} value={f} />
+              ))}
+            </datalist>
+          </label>
+        </div>
+        <p className="hint">
+          Позначте правильні відповіді кнопкою «Правильна». Порожні варіанти не збережуться.
+        </p>
         {questions.map((q, i) => (
           <QuestionEditor
             key={q.id}
@@ -239,39 +262,42 @@ function Editor({ id, initial }: { id: string | null; initial: QuizDoc | null })
             onDelete={() => update((qs) => qs.filter((x) => x.id !== q.id))}
           />
         ))}
-        {questions.length < MAX_QUESTIONS && (
-          <div className="row">
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => update((qs) => [...qs, newQuestion()])}
-            >
-              <Icon name="plus" /> Питання з варіантами
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => update((qs) => [...qs, newQuestion('text')])}
-            >
-              <Icon name="plus" /> Питання з відповіддю словом
-            </button>
+        {questions.length < MAX_QUESTIONS ? (
+          <div className="add-question">
+            <p className="strong">Додати питання</p>
+            <div className="add-question-row">
+              <button type="button" className="choice" onClick={() => add('single')}>
+                <span className="choice-icon">
+                  <OptionShape index={2} />
+                </span>
+                <span className="choice-text">
+                  <span className="choice-title">Один правильний варіант</span>
+                  <span className="choice-note">Учень обирає одну відповідь</span>
+                </span>
+              </button>
+              <button type="button" className="choice" onClick={() => add('multiple')}>
+                <span className="choice-icon">
+                  <Icon name="test" size={22} />
+                </span>
+                <span className="choice-text">
+                  <span className="choice-title">Кілька правильних</span>
+                  <span className="choice-note">Треба позначити всі правильні</span>
+                </span>
+              </button>
+              <button type="button" className="choice" onClick={() => add('text')}>
+                <span className="choice-icon">
+                  <Icon name="edit" size={22} />
+                </span>
+                <span className="choice-text">
+                  <span className="choice-title">Відповідь словом</span>
+                  <span className="choice-note">Слово або число, без варіантів</span>
+                </span>
+              </button>
+            </div>
           </div>
+        ) : (
+          <p className="muted">У тесті вже {MAX_QUESTIONS} питань — це найбільше.</p>
         )}
-      </div>
-
-      <div className="sticky-save">
-        <button className="btn btn-lg" onClick={() => void save()} disabled={busy}>
-          {busy ? 'Зберігаю…' : 'Зберегти'}
-        </button>
-        {saved && !dirty && (
-          <span className="badge badge-ok" role="status">
-            <Icon name="check" /> Збережено
-          </span>
-        )}
-        {dirty && <span className="muted small">Є незбережені зміни</span>}
-        <div className="grow">
-          <ErrorText error={error} />
-        </div>
       </div>
     </main>
   );
@@ -320,7 +346,7 @@ function QuestionEditor({
       <div className="q-head">
         <span className="q-num">Питання {index + 1}</span>
         <select
-          className="input input-sm"
+          className="input input-sm q-type"
           value={q.type}
           onChange={(e) => onChange(changeType(q, e.target.value as QuestionType))}
           aria-label="Тип питання"
@@ -331,8 +357,9 @@ function QuestionEditor({
             </option>
           ))}
         </select>
+        <span className="small muted">Час у грі:</span>
         <select
-          className="input input-sm"
+          className="input input-sm q-time"
           value={q.timeLimitSec}
           onChange={(e) => onChange({ ...q, timeLimitSec: Number(e.target.value) })}
           aria-label="Час у живій грі"
@@ -440,7 +467,7 @@ function QuestionEditor({
       ) : (
         <div className="stack stack-sm">
           <span className="small strong">
-            Варіанти відповіді (натисніть галочку, щоб позначити правильні)
+            Варіанти відповіді (натисніть «Правильна?», щоб позначити правильні)
           </span>
           {q.options.map((o, i) => (
             <div
@@ -472,7 +499,8 @@ function QuestionEditor({
                 aria-pressed={isCorrect(o.id)}
                 title={isCorrect(o.id) ? 'Правильна відповідь' : 'Позначити правильною'}
               >
-                {isCorrect(o.id) && <Icon name="check" />}
+                {isCorrect(o.id) ? <Icon name="check" /> : null}
+                <span>{isCorrect(o.id) ? 'Правильна' : 'Правильна?'}</span>
               </button>
               {q.options.length > 2 && (
                 <button
