@@ -33,13 +33,13 @@ export function ClassWork({
     <section className="stack">
       <div className="row">
         <button className="btn" onClick={() => setAssign(true)}>
-          <Icon name="plus" /> Дати завдання
+          <Icon name="send" /> Дати завдання
         </button>
-        <button className="btn btn-secondary" onClick={() => setPlay(true)}>
-          Жива гра
+        <button className="btn" onClick={() => setPlay(true)}>
+          <Icon name="star" /> Жива гра
         </button>
         <Link to="/t/quizzes" className="btn btn-secondary">
-          Банк тестів
+          Усі тести
         </Link>
       </div>
       <ErrorText error={list.error} />

@@ -11,6 +11,7 @@ import {
 } from '../data/classes';
 import { ErrorText, Spinner } from '../components/Modal';
 import { SecretView } from '../components/SecretView';
+import { store } from '../lib/storage';
 
 /** Login cards to print, cut and hand out (or screenshot one for an online lesson). */
 export function CardsPage() {
@@ -37,7 +38,13 @@ export function CardsPage() {
         </Link>
         <div className="page-header">
           <h1>Картки входу{cls.data ? ` · ${cls.data.name}` : ''}</h1>
-          <button className="btn" onClick={() => window.print()}>
+          <button
+            className="btn"
+            onClick={() => {
+              store.set('printedCards', true);
+              window.print();
+            }}
+          >
             Друкувати
           </button>
         </div>

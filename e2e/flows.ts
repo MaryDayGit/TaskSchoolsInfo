@@ -24,7 +24,7 @@ export async function createClass(t: Page, name: string, grade: number): Promise
   await t.getByRole('button', { name: '+ Новий клас' }).click();
   await t.getByLabel('Назва класу').fill(name);
   await t.getByLabel('Рік навчання').selectOption(String(grade));
-  await t.getByRole('button', { name: 'Створити' }).click();
+  await t.getByRole('button', { name: 'Створити', exact: true }).click();
   await t.getByRole('heading', { name: `Клас ${name}` }).waitFor();
   const code = (await t.getByTestId('join-code').locator('strong').textContent())!.trim();
   expect(code).toMatch(/^\d{6}$/);
@@ -72,7 +72,8 @@ export async function pupilWithWord(
   await page.getByRole('button', { name }).click({ timeout: 15_000 });
   await page.getByLabel('Пароль').fill(word);
   await page.getByRole('button', { name: 'Увійти' }).click();
-  await page.getByRole('heading', { name: `Привіт, ${name}!` }).waitFor();
+  // «Привіт, …!» is also the heading of the password step: wait for the home screen.
+  await page.getByTestId('student-home').waitFor({ timeout: 15_000 });
   return { ctx, page };
 }
 
@@ -87,7 +88,7 @@ export async function pupilWithPictures(
   const page = await open(ctx, `/join/${code}`);
   await page.getByRole('button', { name }).click({ timeout: 15_000 });
   for (const l of labels) await page.getByRole('button', { name: l, exact: true }).click();
-  await page.getByRole('heading', { name: `Привіт, ${name}!` }).waitFor();
+  await page.getByTestId('student-home').waitFor({ timeout: 15_000 });
   return { ctx, page };
 }
 

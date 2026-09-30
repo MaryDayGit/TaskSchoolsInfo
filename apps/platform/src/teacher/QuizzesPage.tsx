@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { collection } from 'firebase/firestore';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { IMPORT_EXAMPLE, parseImport, type Question } from '@infoklas/shared';
 import { db } from '../firebase/app';
 import { errorText } from '../firebase/errors';
@@ -21,6 +21,7 @@ import { Icon } from '../components/Icon';
 import { ErrorText, Modal, Spinner } from '../components/Modal';
 import { clean, countLabel, formatShortDate, questionsLabel } from '../lib/text';
 import { AssignModal, byFolder } from './AssignModal';
+import { CreateTestModal } from './CreateTestModal';
 import { GameModal } from './GameModal';
 import { QUIZ_TEMPLATES } from './templates';
 
@@ -44,7 +45,20 @@ export function QuizzesPage() {
   const [answers, setAnswers] = useState<Quiz | null>(null);
   const [assign, setAssign] = useState<string | null>(null);
   const [play, setPlay] = useState<string | null>(null);
+  const [params, setParams] = useSearchParams();
   const [importing, setImporting] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const templatesRef = useRef<HTMLHeadingElement>(null);
+  // «Вставити готовий текст» / «Взяти шаблон НУШ» from «Створити тест» (also when
+  // this page is already open): the import opens, the templates come into view.
+  const wantImport = params.get('import') === '1';
+  const wantTemplates = params.get('templates') === '1';
+  useEffect(() => {
+    if (!wantImport && !wantTemplates) return;
+    if (wantImport) setImporting(true);
+    if (wantTemplates) templatesRef.current?.scrollIntoView({ block: 'start' });
+    setParams({}, { replace: true });
+  }, [wantImport, wantTemplates, setParams]);
   const [error, setError] = useState<string | null>(null);
 
   const usage = useMemo(() => {
@@ -86,12 +100,9 @@ export function QuizzesPage() {
       <div className="page-header">
         <h1>Банк тестів</h1>
         <div className="row">
-          <button className="btn btn-secondary" onClick={() => setImporting(true)}>
-            <Icon name="upload" /> Імпорт
+          <button className="btn" onClick={() => setCreating(true)}>
+            <Icon name="plus" /> Створити тест
           </button>
-          <Link to="/t/quizzes/new" className="btn">
-            <Icon name="plus" /> Новий тест
-          </Link>
         </div>
       </div>
       <p className="muted">
@@ -130,7 +141,7 @@ export function QuizzesPage() {
         <Spinner />
       ) : !quizzes.docs.length ? (
         <p className="empty">
-          Тестів ще немає. Натисніть «Новий тест», «Імпорт» або візьміть шаблон нижче.
+          Тестів ще немає. Натисніть «Створити тест» або візьміть шаблон нижче.
         </p>
       ) : !list.length ? (
         <p className="empty">Нічого не знайдено.</p>
@@ -201,7 +212,9 @@ export function QuizzesPage() {
         ))
       )}
 
-      <h2 className="section-title">Шаблони НУШ</h2>
+      <h2 className="section-title" id="templates" ref={templatesRef}>
+        Шаблони НУШ
+      </h2>
       <p className="muted">Створіть копію шаблону і змініть під свій урок.</p>
       <div className="grid">
         {QUIZ_TEMPLATES.map((t) => (
@@ -228,6 +241,7 @@ export function QuizzesPage() {
         ))}
       </div>
 
+      {creating && <CreateTestModal onClose={() => setCreating(false)} />}
       {answers && <AnswersModal quiz={answers} onClose={() => setAnswers(null)} />}
       {assign && <AssignModal quizId={assign} onClose={() => setAssign(null)} />}
       {play && <GameModal quizId={play} onClose={() => setPlay(null)} />}

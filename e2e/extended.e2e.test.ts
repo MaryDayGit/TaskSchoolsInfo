@@ -68,10 +68,8 @@ const bank = async () => {
 describe('bank and editor', () => {
   it('builds a test with all question types, reorders, keeps unsaved changes safe', async () => {
     await bank();
-    await t
-      .getByRole('link', { name: 'Новий тест' })
-      .or(t.getByRole('button', { name: 'Новий тест' }))
-      .click();
+    await t.getByRole('button', { name: 'Створити тест' }).click();
+    await t.getByRole('button', { name: /Написати самостійно/ }).click();
     await t.getByLabel('Назва тесту').fill('Пристрої');
     await t.getByLabel('Папка').fill('Перевірка');
 
@@ -86,7 +84,7 @@ describe('bank and editor', () => {
     expect(await q1.getByLabel(/^Варіант \d$/).count()).toBe(3);
 
     // Q2: several right answers.
-    await t.getByRole('button', { name: 'Питання з варіантами' }).click();
+    await t.getByRole('button', { name: /Один правильний варіант/ }).click();
     const q2 = t.getByTestId('question-2');
     await q2.getByLabel('Тип питання').selectOption({ label: 'Кілька правильних відповідей' });
     await q2.getByLabel('Текст питання').fill('Що є пристроями виведення?');
@@ -103,7 +101,7 @@ describe('bank and editor', () => {
     await q2.getByLabel('Час у живій грі').selectOption('10');
 
     // Q3: a word with two spellings, then moved to the top.
-    await t.getByRole('button', { name: 'Питання з відповіддю словом' }).click();
+    await t.getByRole('button', { name: /Відповідь словом/ }).click();
     const q3 = t.getByTestId('question-3');
     await q3.getByLabel('Текст питання').fill('Мозок комп’ютера?');
     await q3.getByLabel('Правильна відповідь').fill('процесор');
@@ -125,7 +123,7 @@ describe('bank and editor', () => {
 
     // An unsaved change asks before leaving; «Скасувати» keeps the editor.
     await t.getByTestId('question-1').getByLabel('Текст питання').fill('Пристрій введення даних?');
-    await t.getByRole('button', { name: '← Банк тестів' }).click();
+    await t.getByRole('button', { name: '← Тести' }).click();
     const leave = t.getByRole('alertdialog', { name: 'Вийти без збереження?' });
     await leave.getByRole('button', { name: 'Скасувати' }).click();
     await t.getByRole('button', { name: 'Зберегти' }).click();
@@ -579,6 +577,76 @@ describe('live game variants', () => {
   });
 });
 
+describe('live game: joining by the game code', () => {
+  it('a pupil types the code; another joins by the QR link after the start', async () => {
+    const code = await createClass(t, '8-К', 8);
+    await addStudents(t, ['Кіра', 'Лука']);
+    const [wk, wl] = await words(t, ['Кіра', 'Лука']);
+    expect(code).toMatch(/^\d{6}$/);
+    await openGame('8-К');
+    const pin = (await t.getByTestId('game-pin').textContent())!.replace(/\s/g, '');
+    expect(pin).toMatch(/^\d{6}$/);
+    await t.getByRole('img', { name: /QR-код для входу в гру/ }).waitFor();
+
+    // Кіра: the start page → «Увійти в гру за кодом» → name → password → the lobby.
+    const k = await computer(browser);
+    opened.push(k);
+    const kp = await open(k, '/');
+    await kp.getByRole('button', { name: 'Увійти в гру за кодом' }).click({ timeout: 15_000 });
+    await kp.getByLabel('Код гри').fill('000000');
+    await kp.getByRole('button', { name: 'До гри' }).click();
+    await kp.getByRole('alert').getByText('Гру з таким кодом не знайдено').waitFor();
+    await kp.getByLabel('Код гри').fill(pin);
+    await kp.getByRole('button', { name: 'До гри' }).click();
+    await kp.getByTestId('game-join-badge').waitFor();
+    await kp.getByRole('button', { name: 'Кіра' }).click();
+    await kp.getByLabel('Пароль').fill(wk!);
+    await kp.getByRole('button', { name: 'Увійти' }).click();
+    await kp.getByText('Чекаємо, коли вчитель почне гру').waitFor({ timeout: 15_000 });
+    await t.getByTestId('joined-count').getByText('1').waitFor();
+
+    await t.getByRole('button', { name: 'Почати гру' }).click();
+    await t.getByTestId('game-pin-chip').getByText(pin.slice(0, 3)).waitFor();
+
+    // Лука is late: the QR link on a phone, straight into the running question.
+    const l = await computer(browser, { width: 375, height: 740 });
+    opened.push(l);
+    const lp = await open(l, `/g/${pin}`);
+    await lp.getByRole('button', { name: 'Лука' }).click({ timeout: 15_000 });
+    await lp.getByLabel('Пароль').fill(wl!);
+    await lp.getByRole('button', { name: 'Увійти' }).click();
+    await lp.getByRole('radio', { name: 'Клавіатура' }).click({ timeout: 15_000 });
+    await lp.getByTestId('answer-accepted').or(lp.getByTestId('game-reveal')).waitFor();
+    await t
+      .getByTestId('answered')
+      .getByText(/1\/2|2\/2/)
+      .waitFor();
+
+    // A pupil of another class who follows the link is told so.
+    const other = await createClass(t, '8-Ж', 8);
+    await addStudents(t, ['Марк']);
+    const [wm] = await words(t, ['Марк']);
+    const m = await pupilWithWord(browser, other, 'Марк', wm!);
+    opened.push(m.ctx);
+    await m.page.goto(`${BASE_URL}/g/${pin}`);
+    await m.page.getByText('Ця гра — для іншого класу').waitFor({ timeout: 30_000 });
+
+    // After the game the code no longer works.
+    await t.goto(`${BASE_URL}/t`);
+    await t.getByRole('link', { name: /8-К/ }).click();
+    await t.getByRole('tab', { name: 'Завдання' }).click();
+    const gameUrl = (await adminDb().collection('gamePins').doc(pin).get()).get('gameId') as string;
+    await t.goto(`${BASE_URL}/t/game/${gameUrl}`);
+    await t.getByRole('button', { name: 'Завершити' }).click();
+    await t.getByRole('alertdialog').getByRole('button', { name: 'Завершити' }).click();
+    await t.getByTestId('game-finished').waitFor();
+    await expect
+      .poll(async () => (await adminDb().collection('gamePins').doc(pin).get()).exists)
+      .toBe(false);
+    expect([...kp.errors, ...lp.errors, ...m.page.errors]).toEqual([]);
+  });
+});
+
 describe('bad network', () => {
   it('homework sent without network goes out when the network is back', async () => {
     const code = await createClass(t, '6-О', 6);
@@ -802,6 +870,13 @@ describe('accessibility (axe, WCAG 2 A/AA)', () => {
       await t.goto(`${BASE_URL}${path}`);
       await t.getByRole('heading', { name: ready }).first().waitFor();
       await audit(t, path);
+    }
+    // Each cabinet theme on the home page.
+    for (const theme of ['Тепла', 'Темна', 'Світла']) {
+      await t.goto(`${BASE_URL}/t`);
+      await t.getByRole('radio', { name: theme }).click();
+      await t.getByRole('heading', { name: 'Мої класи' }).waitFor();
+      await audit(t, `головна (${theme})`);
     }
     await t.goto(`${BASE_URL}/t`);
     await t.getByRole('link', { name: /6-О/ }).click();

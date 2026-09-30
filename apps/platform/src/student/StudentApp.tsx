@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { deleteDoc, getDoc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore';
-import { useParams, useSearchParams } from 'react-router';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { PICTURES, type PictureId } from '@infoklas/shared/pictures';
 import { useUser } from '../firebase/auth';
 import { errorText, isPermissionDenied } from '../firebase/errors';
@@ -31,6 +31,7 @@ import { HomeworkList } from './HomeworkList';
 import { LessonScreen } from './LessonScreen';
 import { pcNum as parsePcNum } from '@infoklas/shared/lesson';
 import { roomRef, type RoomDoc } from '../data/room';
+import { gamePinRef, type GamePinDoc } from '../data/games';
 
 import { store } from '../lib/storage';
 import { clean } from '../lib/text';
@@ -223,6 +224,7 @@ function BoundLesson({
   const me = useDoc<RosterDoc>(rosterRef(b.classId, b.studentId));
   const [params, setParams] = useSearchParams();
   const playing = params.get('g');
+  const gameNotice = useGameCode(b.classId);
   // A new password makes the binding invalid: the roster row stays readable, but
   // the class is not — the same check as on the home screen.
   useEffect(() => {
@@ -252,7 +254,12 @@ function BoundLesson({
   return (
     <div data-testid="student-home">
       <LessonScreen
-        top={<GameBanner classId={b.classId} onOpen={(id) => setParams({ g: id })} />}
+        top={
+          <>
+            {gameNotice && <p className="alert alert-info">{gameNotice}</p>}
+            <GameBanner classId={b.classId} onOpen={(id) => setParams({ g: id })} />
+          </>
+        }
         uid={uid}
         room={room}
         roomFromCache={roomFromCache}
@@ -271,6 +278,35 @@ function BoundLesson({
       />
     </div>
   );
+}
+
+/**
+ * /g/123456 (the game code on the projector, or its QR code) once the pupil is
+ * logged in: opens the game of their class, or says it is another class's game.
+ */
+function useGameCode(classId: string) {
+  const { pin } = useParams();
+  const navigate = useNavigate();
+  const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (!pin) return;
+    let cancelled = false;
+    getDoc(gamePinRef(pin)).then(
+      (snap) => {
+        if (cancelled) return;
+        const g = snap.data() as GamePinDoc | undefined;
+        if (!g) setNotice(`Гру з кодом ${pin} не знайдено: можливо, вона вже завершилась.`);
+        else if (g.classId !== classId)
+          setNotice('Ця гра — для іншого класу. Натисни «Це не я / Вийти» і увійди у свій клас.');
+        else navigate(`/?g=${g.gameId}`, { replace: true });
+      },
+      (err: unknown) => !cancelled && setNotice(errorText(err)),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [pin, classId, navigate]);
+  return notice;
 }
 
 /** Asked once on a school PC when the pupil's class is on the lesson. */
@@ -318,6 +354,7 @@ function BoundHome({ uid, b, onStale }: { uid: string; b: BindingDoc; onStale: (
   const [params, setParams] = useSearchParams();
   const open = params.get('a');
   const playing = params.get('g');
+  const gameNotice = useGameCode(b.classId);
 
   // A new password from the teacher makes this device's binding invalid: the
   // rules then refuse to show the class. Forget the binding and log in again.
@@ -381,6 +418,7 @@ function BoundHome({ uid, b, onStale }: { uid: string; b: BindingDoc; onStale: (
         <h1>Привіт, {me.data?.displayName ?? '…'}!</h1>
         {cls && <p className="badge">Клас {cls.name}</p>}
       </div>
+      {gameNotice && <p className="alert alert-info">{gameNotice}</p>}
       <GameBanner classId={b.classId} onOpen={(id) => setParams({ g: id })} />
       <HomeworkList
         classId={b.classId}
@@ -419,9 +457,13 @@ function LoginFlow({
   // A school PC (it remembers its number) goes straight to the names of the lesson
   // class; elsewhere (a phone at home) the lesson is one button on the code screen.
   const straightToLesson = !!lessonClass && pc !== null && !params.code;
-  const [step, setStep] = useState<'code' | 'name' | 'secret' | 'guest'>(
+  const [step, setStep] = useState<'code' | 'game' | 'name' | 'secret' | 'guest'>(
     straightToLesson ? 'name' : 'code',
   );
+  const navigate = useNavigate();
+  const [gamePin, setGamePin] = useState(params.pin ?? '');
+  /** Logging in to join a game (the heading says so). */
+  const [forGame, setForGame] = useState(!!params.pin);
   const [fromLesson, setFromLesson] = useState(straightToLesson);
   const [code, setCode] = useState(params.code ?? store.get('lastCode', ''));
   const [classId, setClassId] = useState<string | null>(null);
@@ -463,10 +505,39 @@ function LoginFlow({
     );
   };
 
-  // A link from Google Classroom (/join/123456) opens the class right away; on a
+  /** The game code: its class's names, then the game opens after the login (useGameCode). */
+  const openGame = async (e?: FormEvent) => {
+    e?.preventDefault();
+    if (!/^\d{6}$/.test(gamePin)) return setError('Код гри — це 6 цифр');
+    setBusy(true);
+    setError(null);
+    try {
+      const snap = await getDoc(gamePinRef(gamePin));
+      const g = snap.data() as GamePinDoc | undefined;
+      if (!g) {
+        setError('Гру з таким кодом не знайдено. Перевір код на екрані вчителя.');
+        setStep('game');
+        return;
+      }
+      await loadRoster(g.classId);
+      setFromLesson(false);
+      setForGame(true);
+      if (params.pin !== gamePin) navigate(`/g/${gamePin}`, { replace: true });
+      setStep('name');
+    } catch (err) {
+      setError(errorText(err));
+      setStep('game');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // A link from Google Classroom (/join/123456) opens the class right away; the
+  // game code (/g/123456, QR on the projector) the class of that game; on a
   // lesson in the lab the names of the lesson class are shown without a code.
   useEffect(() => {
-    if (params.code) void openClass();
+    if (params.pin) void openGame();
+    else if (params.code) void openClass();
     else if (straightToLesson) openLesson();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -511,6 +582,40 @@ function LoginFlow({
 
   if (step === 'guest') return <GuestForm onDone={onGuest} onBack={() => setStep('code')} />;
 
+  if (step === 'game') {
+    return (
+      <form className="stack" onSubmit={openGame}>
+        <h1 className="center">Введи код гри</h1>
+        <p className="muted center">Код — 6 цифр на екрані вчителя (проектор).</p>
+        <input
+          className="input code-input"
+          inputMode="numeric"
+          autoComplete="off"
+          maxLength={6}
+          autoFocus
+          value={gamePin}
+          onChange={(e) => setGamePin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          aria-label="Код гри"
+          placeholder="••••••"
+        />
+        <ErrorText error={error} />
+        <button className="btn btn-sun btn-lg btn-block" disabled={busy || gamePin.length !== 6}>
+          До гри
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          onClick={() => {
+            setError(null);
+            setStep('code');
+          }}
+        >
+          ← Код класу
+        </button>
+      </form>
+    );
+  }
+
   if (step === 'code') {
     return (
       <form className="stack" onSubmit={openClass}>
@@ -537,6 +642,16 @@ function LoginFlow({
             Я на уроці: {lessonClass.name}
           </button>
         )}
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => {
+            setError(null);
+            setStep('game');
+          }}
+        >
+          Увійти в гру за кодом
+        </button>
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => setStep('guest')}>
           Увійти як гість (на уроці, без картки)
         </button>
@@ -554,6 +669,13 @@ function LoginFlow({
             {pc !== null && <span className="badge">Комп’ютер {String(pc).padStart(2, '0')}</span>}{' '}
             <span className="badge" data-testid="lesson-badge">
               Урок: {lessonClass.name}
+            </span>
+          </p>
+        )}
+        {forGame && (
+          <p className="center">
+            <span className="badge" data-testid="game-join-badge">
+              Вхід у живу гру
             </span>
           </p>
         )}

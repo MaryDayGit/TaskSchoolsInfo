@@ -25,6 +25,8 @@ export function App() {
           <Route path="/" element={<StudentApp />} />
           {/* Ссылка для Google Classroom и карточек: сразу открывает класс по коду. */}
           <Route path="/join/:code" element={<StudentApp />} />
+          {/* Код живої гри з проектора (QR-код): клас гри, вхід, гра. */}
+          <Route path="/g/:pin" element={<StudentApp />} />
           <Route
             path="/t/*"
             element={

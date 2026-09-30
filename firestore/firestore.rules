@@ -395,12 +395,25 @@ service cloud.firestore {
       return /databases/$(database)/documents/games/$(gameId);
     }
 
+    // Код гри на проекторі (6 цифр): за ним учень знаходить гру і свій клас,
+    // як за кодом класу. Існує, поки гра не завершена.
+    match /gamePins/{pin} {
+      allow get: if signedIn();
+      allow create: if isTeacher()
+        && pin.matches('[0-9]{6}')
+        && request.resource.data.keys().hasOnly(['gameId', 'classId', 'createdAt'])
+        && request.resource.data.gameId is string
+        && request.resource.data.classId is string
+        && request.resource.data.createdAt == request.time;
+      allow delete: if isTeacher();
+    }
+
     match /games/{gameId} {
       allow get, list: if isTeacher() || isStudentOf(resource.data.classId);
       allow create, update: if isTeacher()
         && request.resource.data.keys().hasOnly(['classId', 'className', 'quizId', 'title', 'questions', 'status',
                                                  'index', 'deadline', 'starts', 'junior', 'stats', 'reveal',
-                                                 'players', 'leaderboard', 'createdAt', 'finishedAt', 'active'])
+                                                 'players', 'leaderboard', 'createdAt', 'finishedAt', 'active', 'pin'])
         && request.resource.data.classId is string
         && request.resource.data.status in ['lobby', 'question', 'reveal', 'finished']
         && request.resource.data.index is int

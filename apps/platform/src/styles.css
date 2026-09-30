@@ -117,6 +117,8 @@ p {
   gap: 8px;
   font-weight: 800;
   font-size: 1.15rem;
+  color: var(--text);
+  text-decoration: none;
 }
 .brand-light {
   color: #fff;
@@ -159,7 +161,7 @@ p {
   cursor: pointer;
   text-decoration: none;
   background: var(--primary);
-  color: #fff;
+  color: var(--on-primary, #fff);
 }
 .btn:hover {
   background: var(--primary-hover);
@@ -852,20 +854,32 @@ p {
 }
 .correct-toggle {
   flex: none;
-  width: 36px;
-  height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid var(--border);
-  border-radius: var(--radius-sm);
+  gap: 4px;
+  min-width: 118px;
+  min-height: 40px;
+  padding: 4px 10px;
+  border: 2px dashed var(--border);
+  border-radius: 999px;
   background: var(--surface);
-  color: #fff;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
   cursor: pointer;
 }
-.correct-toggle.on {
-  background: var(--ok);
+.correct-toggle:hover {
   border-color: var(--ok);
+  color: var(--text);
+}
+.correct-toggle.on {
+  border-style: solid;
+  /* Darker than --ok: white text on it needs 4.5:1. */
+  border-color: #137a52;
+  background: #137a52;
+  color: #fff;
 }
 .sticky-save {
   position: sticky;
@@ -1082,11 +1096,6 @@ p {
 
 /* ---------- Stage 4: lesson console (teacher) ---------- */
 
-.lesson.is-locked .lesson-head {
-  background: #fff4d6;
-  border-radius: var(--radius);
-  padding: 8px 12px;
-}
 .lesson-grid {
   display: grid;
   grid-template-columns: minmax(300px, 420px) minmax(0, 1fr);
@@ -2190,4 +2199,411 @@ p {
 .theme-senior .btn-ghost:hover {
   background: #21262d;
   color: #e6edf3;
+}
+
+/* ---------- Кабинет учителя: темы (переключатель в шапке) ----------
+ * Спокойный фон и поверхности; яркий только --primary (главные кнопки,
+ * выбранный раздел), чтобы глаз сразу видел, куда нажимать. */
+html[data-tt] {
+  --on-primary: #fff;
+}
+html[data-tt='light'] {
+  --bg: #f3f5f8;
+  --surface: #fff;
+  --border: #dde2ea;
+  --text: #1b2130;
+  --muted: #566073;
+  --primary: #1d5bd8;
+  --primary-hover: #164bb5;
+  --primary-soft: #e6eefc;
+  --focus: 0 0 0 3px rgb(29 91 216 / 35%);
+  --shadow: 0 1px 2px rgb(16 24 40 / 5%), 0 2px 8px rgb(16 24 40 / 4%);
+}
+html[data-tt='warm'] {
+  --bg: #f5f0e8;
+  --surface: #fffdf9;
+  --border: #e4d9c6;
+  --text: #2a241c;
+  --muted: #62584a;
+  --primary: #0d7457;
+  --primary-hover: #0a5d46;
+  --primary-soft: #e0f0e8;
+  --danger-soft: #fbe7e2;
+  --focus: 0 0 0 3px rgb(13 116 87 / 35%);
+  --shadow: 0 1px 2px rgb(60 40 10 / 6%), 0 2px 8px rgb(60 40 10 / 5%);
+}
+html[data-tt='dark'] {
+  --bg: #13161b;
+  --surface: #1c2027;
+  --border: #323843;
+  --text: #e7e9ee;
+  --muted: #a5adba;
+  --primary: #ffcc33;
+  --primary-hover: #ffd966;
+  --primary-soft: #3b3217;
+  --on-primary: #1a1a1a;
+  --danger-soft: #3a1f1f;
+  --ok: #3ccf91;
+  --bad: #ff8a80;
+  --focus: 0 0 0 3px rgb(255 204 51 / 45%);
+  --shadow: none;
+  color-scheme: dark;
+}
+html[data-tt='dark'] .btn-danger-ghost {
+  color: #ff8a80;
+}
+html[data-tt='dark'] .btn-danger {
+  color: #1a1a1a;
+}
+html[data-tt] .hand-chip {
+  background: var(--surface);
+  color: var(--text);
+}
+.theme-switch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+}
+.theme-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.theme-opt.on {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+.theme-dot {
+  width: 12px;
+  height: 12px;
+  border: 1px solid rgb(0 0 0 / 25%);
+  border-radius: 50%;
+}
+.theme-opt-light .theme-dot {
+  background: linear-gradient(135deg, #fff 50%, #1d5bd8 50%);
+}
+.theme-opt-warm .theme-dot {
+  background: linear-gradient(135deg, #fffdf9 50%, #0d7457 50%);
+}
+.theme-opt-dark .theme-dot {
+  background: linear-gradient(135deg, #1c2027 50%, #ffcc33 50%);
+}
+
+/* ---------- Головна кабинета ---------- */
+.home-title {
+  margin: 8px 0 16px;
+}
+.home-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-height: 150px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.action:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.action:hover:not(:disabled) {
+  border-color: var(--primary);
+}
+.action-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.action-title {
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+.action-note {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+.action-primary {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--on-primary, #fff);
+}
+.action-primary .action-icon {
+  background: rgb(255 255 255 / 20%);
+  color: inherit;
+}
+.action-primary .action-note {
+  color: inherit;
+  opacity: 0.9;
+}
+.first-steps {
+  margin-bottom: 24px;
+}
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.step {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.step-num {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+  color: var(--primary);
+  font-weight: 800;
+}
+.step.done {
+  color: var(--muted);
+}
+.step.done .step-num {
+  border-color: var(--ok);
+  background: var(--ok);
+  color: #fff;
+}
+.section-title-inline {
+  margin: 0;
+}
+.class-card-name {
+  margin: 0 0 6px;
+  font-size: 1.4rem;
+}
+
+/* «Як створити тест?»: big choices */
+.choice {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  width: 100%;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.choice:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+.choice-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.choice-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.choice-title {
+  font-weight: 800;
+}
+.choice-note {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+/* ---------- Редактор теста ---------- */
+.editor-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 0 -8px 16px;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+.editor-bar-title {
+  font-size: 1.1rem;
+}
+.add-question {
+  padding: 16px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+}
+.add-question > p {
+  margin: 0 0 10px;
+}
+.add-question-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+.q-type {
+  width: auto;
+}
+.q-time {
+  width: auto;
+}
+
+/* ---------- Пульт урока: до урока — одна карточка, во время — верхняя строка ---------- */
+.start-card {
+  max-width: 720px;
+  margin: 12px auto 0;
+  padding: 28px;
+}
+.start-title {
+  margin: 4px 0 12px;
+  font-size: 1.5rem;
+}
+.start-steps {
+  margin: 0 0 18px;
+  padding-left: 1.3em;
+  color: var(--muted);
+}
+.start-steps li {
+  margin-bottom: 4px;
+}
+.start-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.start-row .input {
+  flex: 1 1 240px;
+  width: auto;
+}
+.start-row .input-lg {
+  min-height: 52px;
+  font-size: 1.1rem;
+}
+.start-guests {
+  margin-top: 14px;
+}
+.lesson-top {
+  margin-bottom: 16px;
+}
+.lesson-top-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+.lesson-now {
+  margin: 0;
+  font-size: 1.25rem;
+}
+.lesson-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.lesson-switch-row .input {
+  width: auto;
+}
+/* Screens are locked: the top bar says so at a glance. */
+.lesson.is-locked .lesson-top {
+  border-color: var(--sun-dark);
+  box-shadow: 0 0 0 3px var(--sun-dark);
+}
+.tab-hint {
+  margin: -6px 0 16px;
+  color: var(--muted);
+}
+
+/* ---------- Код гри на проекторі ---------- */
+.host-join-box {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 32px;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 28px;
+  border-radius: var(--radius);
+  background: rgb(255 255 255 / 8%);
+  text-align: left;
+}
+.host-join-steps p {
+  margin: 6px 0;
+  font-size: 1.3rem;
+}
+.host-join-steps .host-pin {
+  margin: 4px 0 10px;
+  color: var(--sun);
+  font-size: 4.5rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+}
+.host-qr {
+  text-align: center;
+}
+.qr {
+  display: block;
+  border-radius: 8px;
+}
+.host-pin-chip {
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 12%);
+  font-size: 0.95rem;
+}
+.host-pin-chip b {
+  color: var(--sun);
+  letter-spacing: 0.05em;
+}
+.lesson-h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  color: var(--muted);
 }

@@ -34,10 +34,18 @@ import { ClassWork } from './ClassWork';
 import { JournalTab } from './JournalTab';
 
 const TABS = [
-  ['students', 'Учні'],
-  ['work', 'Завдання'],
+  ['students', 'Учні і паролі'],
+  ['work', 'Завдання та ігри'],
   ['journal', 'Журнал'],
 ] as const;
+
+/** One line under the tabs: what this tab is for. */
+const TAB_HINTS: Record<(typeof TABS)[number][0], string> = {
+  students:
+    'Список учнів і їхні паролі. Роздрукуйте «Картки входу»: на них код класу й пароль кожного учня.',
+  work: 'Домашні завдання, тести з уроків і живі ігри цього класу з результатами.',
+  journal: 'Оцінки за всі роботи класу. Можна завантажити для Excel або Google Таблиць.',
+};
 type Tab = (typeof TABS)[number][0];
 
 export type Student = { id: string; data: RosterDoc };
@@ -70,7 +78,7 @@ export function ClassPage() {
   return (
     <main className="page">
       <Link to="/t" className="back-link">
-        ← Усі класи
+        ← Головна
       </Link>
       <ClassHeader id={id} c={c} />
       <div className="tabs" role="tablist">
@@ -86,6 +94,7 @@ export function ClassPage() {
           </button>
         ))}
       </div>
+      <p className="tab-hint">{TAB_HINTS[tab]}</p>
       {tab === 'students' && (
         <>
           <AddStudents id={id} grade={c.grade} students={students} />
@@ -242,6 +251,18 @@ function AddStudents({ id, grade, students }: { id: string; grade: number; stude
       setText((cur) => cur || names.join('\n'));
     });
   };
+
+  // With pupils in the list the form is one button away, so the list comes first.
+  const [open, setOpen] = useState(students.length === 0);
+  if (!open) {
+    return (
+      <div className="row">
+        <button type="button" className="btn" onClick={() => setOpen(true)}>
+          + Додати учнів
+        </button>
+      </div>
+    );
+  }
 
   return (
     <form className="card stack" onSubmit={submit}>
