@@ -16,6 +16,9 @@ import { klasPultFixture, seeded } from '../tools/migrate/test/fixtures';
 let admin: ReturnType<typeof connect> | null = null;
 const db = () => (admin ??= connect('demo-klas-pult')).db;
 
+/** Admin access to the emulator for checks the page can't show (stored values). */
+export const adminDb = db;
+
 export async function migrateKlasPult() {
   const old = klasPultFixture().filter((d) =>
     ['tests/', 'keys/', 'sessions/', 'results/'].some((p) => d.path.startsWith(p)),
