@@ -818,9 +818,12 @@ describe('stage 5: live game', () => {
       .waitFor();
     await c.getByTestId('game-reveal').getByText('Неправильно').waitFor();
     await c.getByText('Правильна відповідь: Інтернет').waitFor();
-    // The faster pupil gets more points for the same right answer.
+    // The faster pupil gets no fewer points for the same right answer (the bonus
+    // changes by 1 point per 60 ms, so two quick taps may score the same;
+    // game.test.ts checks the bonus itself).
     const score = async (p: TrackedPage) => Number(await p.getByTestId('my-score').textContent());
-    expect(await score(a)).toBeGreaterThan(await score(b));
+    expect(await score(a)).toBeGreaterThanOrEqual(await score(b));
+    expect(await score(a)).toBeLessThanOrEqual(1000);
     expect(await score(b)).toBeGreaterThanOrEqual(500);
     expect(await score(c)).toBe(0);
     expect(await teacher.locator('.leader').first().textContent()).toContain('Андрій Ж.');
